@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-Agent as a Service (AaaS) is a multi-tenant SaaS platform that lets users deploy AI agents accessible through IM channels (Telegram, Feishu, Slack, etc.). Users create agent instances via a web console, configure their IM credentials, and the platform handles the rest — spinning up sandboxed agent runtimes, routing messages, and persisting conversation history.
+Agent as a Service (AaaS) is a multi-tenant SaaS platform that lets users deploy AI agents accessible through IM channels (Telegram, Feishu, Slack, etc.). Users create agent instances via a web dashboard, configure their IM credentials, and the platform handles the rest — spinning up sandboxed agent runtimes, routing messages, and persisting conversation history.
 
 The platform is designed to be **open**: third-party developers can build and publish their own agent types to a marketplace. Users browse the marketplace, select an agent type, configure their IM channels, and the agent goes live — no infrastructure knowledge required.
 
@@ -16,12 +16,12 @@ The platform is designed to be **open**: third-party developers can build and pu
 
 ## 2. Goals
 
-- Users can create and configure agents through a web console without writing code
+- Users can create and configure agents through a web dashboard without writing code
 - Agents are accessible directly through IM channels (Telegram, Feishu, Slack)
 - Agent code runs in isolated sandboxes with no access to platform secrets
 - Conversation history persists across sandbox restarts
 - Third-party developers can publish new agent types without modifying platform code
-- Adding a new agent type requires only a database entry — no engine code changes
+- Adding a new agent type requires only a database entry — no dispatcher code changes
 
 ## 3. Non-Goals
 
@@ -34,14 +34,14 @@ The platform is designed to be **open**: third-party developers can build and pu
 
 ## 4. Architecture Overview
 
-The platform follows the **Control Plane pattern** described by Browser Use: the entire agent runs inside an isolated sandbox (micro-VM), and all external access (LLM calls, storage, message history) is mediated through a trusted control plane. The sandbox holds no credentials.
+The platform follows the **Gateway pattern** described by Browser Use: the entire agent runs inside an isolated sandbox (micro-VM), and all external access (LLM calls, storage, message history) is mediated through a trusted gateway. The sandbox holds no credentials.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Trusted Zone                                                    │
 │                                                                  │
 │  ┌──────────┐   REST   ┌─────────────────┐   JWT secret   ┌──────────────┐  │
-│  │ console  │ ◄──────► │     engine      │ ─────────────► │control plane │  │
+│  │ dashboard │ ◄──────► │   dispatcher    │ ─────────────► │   gateway    │  │
 │  └──────────┘          └────────┬────────┘                └──────┬───────┘  │
 │                                 │ e2b SDK                         │          │
 └─────────────────────────────────┼─────────────────────────────────┼──────────┘
@@ -64,15 +64,15 @@ The platform follows the **Control Plane pattern** described by Browser Use: the
 
 | Service | Runtime | Role |
 |---|---|---|
-| **console** | Next.js | Web dashboard — user management, agent configuration, marketplace UI |
-| **engine** | Node.js (always-on) | IM connections, message dispatch, sandbox lifecycle management |
-| **control plane** | Node.js (always-on) | Sandbox gateway — proxies all external access for sandboxes |
+| **dashboard** | Next.js | Web dashboard — user management, agent configuration, marketplace UI |
+| **dispatcher** | Node.js (always-on) | IM connections, message dispatch, sandbox lifecycle management |
+| **gateway** | Node.js (always-on) | Sandbox gateway — proxies all external access for sandboxes |
 
 ---
 
 ## 5. Services
 
-### 5.1 console
+### 5.1 dashboard
 
 A Next.js application serving as the user-facing management interface and BFF.
 
@@ -81,19 +81,19 @@ A Next.js application serving as the user-facing management interface and BFF.
 - Agent creation: select agent type from marketplace, configure parameters
 - IM channel configuration: enter bot tokens (encrypted at rest)
 - View conversation history, per-agent usage metrics
-- Web-based test chat interface (sends messages via engine's HTTP API)
+- Web-based test chat interface (sends messages via dispatcher's HTTP API)
 - Agent marketplace: browse, install, rate, and review published agent types
 - Developer portal: submit agents, monitor build status, view earnings
 
-**Data access:** Reads/writes directly to PostgreSQL (users, agents, im_configs, agent_types tables). Does not call control plane directly.
+**Data access:** Reads/writes directly to PostgreSQL (users, agents, im_configs, agent_types tables). Does not call gateway directly.
 
 **Interactions:**
-- Notifies engine (REST) when a new agent goes live or is deactivated
-- Calls `POST /agents/:id/chat` on engine for the web test interface
+- Notifies dispatcher (REST) when a new agent goes live or is deactivated
+- Calls `POST /agents/:id/chat` on dispatcher for the web test interface
 
 ---
 
-### 5.2 engine
+### 5.2 dispatcher
 
 A long-running Node.js process that is the operational heart of the platform. It owns IM connections and sandbox lifecycle.
 
@@ -104,7 +104,7 @@ A long-running Node.js process that is the operational heart of the platform. It
   - Telegram: HTTP long-polling (`getUpdates`, 30s timeout, immediately re-polled)
   - Slack: WebSocket via Socket Mode
   - Feishu / WeChat: receives inbound webhook POSTs (no persistent connection)
-- On new agent activation (notified by console), establishes IM connection
+- On new agent activation (notified by dashboard), establishes IM connection
 - On agent deactivation, tears down connection
 
 **Message dispatch**
@@ -120,13 +120,13 @@ A long-running Node.js process that is the operational heart of the platform. It
 - Forwards `POST /chat { message }` to the sandbox
 - Waits for response, then sends it back to the IM user
 - Keeps sandbox alive for `warmup_seconds` after last message; destroys on idle
-- New agent types require no code changes — engine reads all configuration from DB
+- New agent types require no code changes — dispatcher reads all configuration from DB
 
-**Scaling note:** At large scale, multiple engine instances can run in parallel. Each instance handles a subset of bots. Redis tracks which instance owns which bot's connection. Webhook-based platforms (Feishu) are naturally stateless and distribute across instances via load balancer.
+**Scaling note:** At large scale, multiple dispatcher instances can run in parallel. Each instance handles a subset of bots. Redis tracks which instance owns which bot's connection. Webhook-based platforms (Feishu) are naturally stateless and distribute across instances via load balancer.
 
 ---
 
-### 5.3 control plane
+### 5.3 gateway
 
 A Node.js process that acts as the sole gateway between sandboxes and the outside world. It enforces the security boundary.
 
@@ -158,10 +158,10 @@ POST /cp/files/presign
 ```
 
 **Trust model:**
-- engine and control plane share a JWT signing secret (configuration, not HTTP)
-- engine signs the JWT when creating a sandbox; control plane verifies it independently
+- dispatcher and gateway share a JWT signing secret (configuration, not HTTP)
+- dispatcher signs the JWT when creating a sandbox; gateway verifies it independently
 - JWT payload includes `conversation_id`, `agent_id`, `user_id`, `exp`
-- JWT expires when the sandbox session ends; control plane rejects expired tokens
+- JWT expires when the sandbox session ends; gateway rejects expired tokens
 
 ---
 
@@ -231,12 +231,12 @@ messages (
 Every sandbox receives exactly three environment variables:
 
 ```
-SESSION_TOKEN       = <JWT signed by engine>
+SESSION_TOKEN       = <JWT signed by dispatcher>
 CONTROL_PLANE_URL   = https://control-plane.<domain>/
 SESSION_ID          = <conversation_id>
 ```
 
-The sandbox has **no** LLM API keys, no database credentials, no S3 credentials. All external access goes through the control plane, which validates the JWT on every request.
+The sandbox has **no** LLM API keys, no database credentials, no S3 credentials. All external access goes through the gateway, which validates the JWT on every request.
 
 ### JWT design
 
@@ -249,15 +249,15 @@ The sandbox has **no** LLM API keys, no database credentials, no S3 credentials.
 }
 ```
 
-- Signed with `HS256` using a secret shared between engine and control plane
-- `exp` set to `now + idle_timeout_ms + buffer`; control plane rejects expired tokens
-- engine and control plane never communicate over HTTP at runtime — the shared secret is configuration only
+- Signed with `HS256` using a secret shared between dispatcher and gateway
+- `exp` set to `now + idle_timeout_ms + buffer`; gateway rejects expired tokens
+- dispatcher and gateway never communicate over HTTP at runtime — the shared secret is configuration only
 
 ### Credential storage
 
 - Bot tokens stored encrypted (AES-256-GCM) in `im_configs.bot_token_enc`
-- Encryption key stored in engine's environment (not in DB)
-- LLM API keys stored in control plane's environment only
+- Encryption key stored in dispatcher's environment (not in DB)
+- LLM API keys stored in gateway's environment only
 
 ### S3 access control
 
@@ -275,7 +275,7 @@ A conversation is uniquely identified by `(agent_id, platform, chat_id)`. The sa
 
 ### Per-conversation serial queue
 
-Engine maintains a Redis-backed queue per `conversation_id`:
+Dispatcher maintains a Redis-backed queue per `conversation_id`:
 
 ```
 Conversation A queue:  [msg1] → [msg2]   ← processed serially
@@ -306,7 +306,7 @@ Cold start latency is masked by sending a "typing..." indicator to the IM user i
 |---|---|---|
 | Telegram | HTTP long-polling (30s timeout, immediately re-polled) | 1 persistent HTTP connection |
 | Slack | WebSocket (Socket Mode) | 1 WebSocket connection |
-| Feishu | Inbound HTTP webhook (no persistent connection) | None — engine is an HTTP server |
+| Feishu | Inbound HTTP webhook (no persistent connection) | None — dispatcher is an HTTP server |
 | WeChat | Inbound HTTP webhook | None |
 
 Node.js's event-loop model handles thousands of concurrent long-polling and WebSocket connections efficiently. No threads are blocked; all connections are multiplexed on the event loop.
@@ -319,7 +319,7 @@ Node.js's event-loop model handles thousands of concurrent long-polling and WebS
 
 1. Developer implements an agent using `agent-sdk`:
    - Exposes `POST /chat` endpoint
-   - Uses SDK to call `invoke_llm`, `load_messages`, `save_messages`, `get_presigned_url` — all proxied through control plane
+   - Uses SDK to call `invoke_llm`, `load_messages`, `save_messages`, `get_presigned_url` — all proxied through gateway
 2. Developer pushes to their GitHub repo
 3. A GitHub Actions workflow (provided as a template by the platform) runs:
    - `e2b template build` to produce an e2b template
@@ -331,22 +331,22 @@ Node.js's event-loop model handles thousands of concurrent long-polling and WebS
 
 ### User flow
 
-1. User browses marketplace in console
+1. User browses marketplace in dashboard
 2. Selects an agent type, clicks "Install"
-3. Console creates an `agents` row linking to `agent_types`
+3. Dashboard creates an `agents` row linking to `agent_types`
 4. User configures IM channels (enters bot tokens)
-5. Console notifies engine; engine establishes IM connections
+5. Dashboard notifies dispatcher; dispatcher establishes IM connections
 6. First message triggers sandbox creation — no pre-warming needed
 
-### Engine extensibility
+### Dispatcher extensibility
 
-Engine reads `template_id`, `port`, `ready_probe`, and timeout values from the `agent_types` table at runtime. **No engine code changes are required when a new agent type is published.** The marketplace is purely data-driven.
+Dispatcher reads `template_id`, `port`, `ready_probe`, and timeout values from the `agent_types` table at runtime. **No dispatcher code changes are required when a new agent type is published.** The marketplace is purely data-driven.
 
 ---
 
 ## 11. agent-sdk
 
-A lightweight library (Python and TypeScript) that agent developers depend on. It wraps all control plane API calls:
+A lightweight library (Python and TypeScript) that agent developers depend on. It wraps all gateway API calls:
 
 ```python
 from agent_sdk import ControlPlane
@@ -381,8 +381,8 @@ The SDK also provides:
 ## 13. Future Considerations
 
 - **Agent marketplace pricing**: per-message billing, revenue sharing with developers
-- **Multi-region**: deploy engine + control plane in multiple regions; session affinity via Redis
-- **Streaming responses**: SSE from control plane to console web chat; IM platforms handle their own streaming
+- **Multi-region**: deploy dispatcher + gateway in multiple regions; session affinity via Redis
+- **Streaming responses**: SSE from gateway to dashboard web chat; IM platforms handle their own streaming
 - **Self-hosted build pipeline**: replace GitHub Actions with an internal builder service when marketplace volume justifies it
 - **Agent versioning**: pinning users to specific agent versions, gradual rollout of updates
-- **MCP integration**: control plane exposes an MCP-compatible tool registry for agents to discover available tools
+- **MCP integration**: gateway exposes an MCP-compatible tool registry for agents to discover available tools
