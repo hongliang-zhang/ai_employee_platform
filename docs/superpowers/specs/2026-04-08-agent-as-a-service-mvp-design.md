@@ -118,7 +118,7 @@ CREATE TABLE im_configs (
   agent_id         TEXT NOT NULL REFERENCES agents(id),
   platform         TEXT NOT NULL DEFAULT 'telegram',
   bot_token_enc    TEXT NOT NULL,         -- AES-256-GCM 加密后的 bot token
-  chat_scope       TEXT NOT NULL DEFAULT 'all', -- all | allowlist
+  chat_scope       TEXT NOT NULL DEFAULT 'all', -- MVP 固定为 'all'，im-ingress 不做白名单过滤
   status           TEXT NOT NULL DEFAULT 'active', -- active | paused | disabled
   lease_owner      TEXT,                  -- dispatcher 实例 ID
   lease_expires_at TIMESTAMPTZ,
@@ -199,20 +199,36 @@ gateway.appendMessages([用户消息])  ← 写入 canonical history
 sandbox-orchestrator.dispatch(conversation_id, agent_id, message)
   ↓
   ├─ 内存 Map 中存在活跃 sandbox？
-  │    → 是：直接 POST /chat
+  │    → 是：直接 POST /chat { message: string }
   │    → 否：e2b.create(template_id)
   │           注入 SESSION_TOKEN / GATEWAY_URL / SESSION_ID
-  │           轮询 GET /health 直到 200
-  │           POST /chat
+  │           轮询 GET /health 直到 200（最多 30s，超时则进入失败路径）
+  │           POST /chat { message: string }
   ↓
-收到 sandbox 响应
-  ↓
-Telegram sendMessage(chat_id, reply_text)
-  ↓
-UPDATE inbound_jobs SET status='done'
-  ↓
-重置该 conversation 的 idle timer
-（idle_timeout_ms 后无新消息则 e2b.kill(sandboxId)，从内存 Map 移除）
+  ├─ sandbox 调用成功？
+  │    → 是：Telegram sendMessage(chat_id, reply_text)
+  │           UPDATE inbound_jobs SET status='done'
+  │           重置该 conversation 的 idle timer
+  │           （idle_timeout_ms 后无新消息则 e2b.kill(sandboxId)，从内存 Map 移除）
+  │    → 否（超时 / e2b 错误 / /health 超时）：
+  │           Telegram sendMessage(chat_id, "抱歉，处理失败，请稍后重试")
+  │           UPDATE inbound_jobs SET status='failed'
+  │           孤儿用户消息保留在 messages 表中（不清理）；
+  │           下次对话继续追加，历史不会损坏
+```
+
+**`POST /chat` 请求体（dispatcher → sandbox）：**
+
+```json
+{ "message": "用户消息文本" }
+```
+
+`conversation_id` 和 `agent_id` 已通过 `SESSION_TOKEN` 传递给沙箱，无需在请求体中重复。
+
+**`POST /chat` 响应体（sandbox → dispatcher）：**
+
+```json
+{ "reply": "助手回复文本" }
 ```
 
 ### 5.3 Sandbox 环境变量
@@ -233,6 +249,10 @@ JWT payload：
 }
 ```
 
+**JWT 过期与长会话问题：** JWT 在沙箱创建时签发，`exp` 基于当时的时间戳。如果一个 conversation 的活跃时间超过 `exp`（即 `idle_timeout_ms + 5min`），沙箱后续请求会收到 gateway 返回的 `401 token_expired`。
+
+MVP 的处理方式：每次 `sandbox-orchestrator.dispatch()` 调用前，重新签发一个新的 JWT 并通过 e2b 的环境变量更新接口（`sandbox.setEnvVars`）注入沙箱，同时更新内存 Map 中的 token 引用。这确保每次消息到来时 token 都是新鲜的，不依赖原始 exp。
+
 ### 5.4 Gateway API（端口 3002，供沙箱调用）
 
 所有请求需携带 `Authorization: Bearer <SESSION_TOKEN>`。
@@ -241,7 +261,7 @@ JWT payload：
 |---|---|
 | `POST /gateway/llm` | 代理 LLM 调用，透传给 OpenAI，记录 usage |
 | `POST /gateway/messages/load` | 加载 conversation 历史 |
-| `POST /gateway/messages/append` | 追加消息（含 optimistic concurrency check） |
+| `POST /gateway/messages/append` | 追加消息（含 optimistic concurrency check，冲突返回 `409 { error: { code: "stale_write" } }`；SDK 不自动重试，调用方负责重新加载历史后重试） |
 | `POST /gateway/files/presign` | **MVP 返回 501** |
 
 ### 5.5 Internal API（端口 3001，供 dashboard 调用）
@@ -274,6 +294,8 @@ Next.js 应用，单管理员通过 `ADMIN_API_KEY` 环境变量鉴权（输入�
 | `/agents/[id]` | Agent 详情：激活/停用、添加/删除 Telegram binding、Web 测试聊天 |
 
 Web 测试聊天面板调用 `POST /internal/agents/:id/chat`，走与 Telegram 消息完全相同的处理路径（归一化、sandbox 调度、gateway 历史），是 MVP 最重要的 demo 功能。
+
+**对话隔离说明：** `POST /internal/agents/:id/chat` 的 `channel_key` 固定为 `web:<agent_id>:test`，`external_chat_id` 使用请求体中的 `session_id`。这意味着同一个 `session_id` 的多次请求共享同一个 conversation 和沙箱。如需多会话隔离，调用方应为每个独立会话生成不同的 `session_id`（dashboard 在页面加载时生成一次即可）。
 
 ---
 
