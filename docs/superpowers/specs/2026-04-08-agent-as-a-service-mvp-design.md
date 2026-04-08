@@ -161,6 +161,8 @@ CREATE TABLE inbound_jobs (
   received_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (channel_key, external_message_id)
 );
+
+CREATE INDEX ON inbound_jobs (status, lease_expires_at);
 ```
 
 ---
@@ -217,6 +219,8 @@ sandbox-orchestrator.dispatch(conversation_id, agent_id, message)
   │           下次对话继续追加，历史不会损坏
 ```
 
+**Optimistic lock 说明：** Dispatcher 在调用沙箱前已将用户消息写入 `messages` 表（`gateway.appendMessages`）。沙箱的 `loadMessages` 响应会包含这条用户消息，返回的 `last_message_id` 指向该消息。沙箱追加助手回复时，以该 `last_message_id` 作为 `expected_last_message_id`，从而使 optimistic concurrency check 覆盖了 dispatcher 写入用户消息这一步——这是预期行为，非竞态。
+
 **`POST /chat` 请求体（dispatcher → sandbox）：**
 
 ```json
@@ -251,7 +255,7 @@ JWT payload：
 
 **JWT 过期与长会话问题：** JWT 在沙箱创建时签发，`exp` 基于当时的时间戳。如果一个 conversation 的活跃时间超过 `exp`（即 `idle_timeout_ms + 5min`），沙箱后续请求会收到 gateway 返回的 `401 token_expired`。
 
-MVP 的处理方式：每次 `sandbox-orchestrator.dispatch()` 调用前，重新签发一个新的 JWT 并通过 e2b 的环境变量更新接口（`sandbox.setEnvVars`）注入沙箱，同时更新内存 Map 中的 token 引用。这确保每次消息到来时 token 都是新鲜的，不依赖原始 exp。
+MVP 的处理方式：`hello-agent` 暴露一个额外端点 `POST /refresh-token { token: string }`，沙箱在收到新 token 后更新内存中的 `SESSION_TOKEN`。每次 `sandbox-orchestrator.dispatch()` 调用前，dispatcher 重新签发一个新的 JWT，先通过 `POST /refresh-token` 推送给沙箱，再发送 `POST /chat`。内存 Map 中同步更新 token 引用。`POST /refresh-token` 是 runtime contract 的一部分，所有兼容 agent 必须实现。
 
 ### 5.4 Gateway API（端口 3002，供沙箱调用）
 
@@ -271,11 +275,11 @@ MVP 的处理方式：每次 `sandbox-orchestrator.dispatch()` 调用前，重�
 | 端点 | 说明 |
 |---|---|
 | `POST /internal/agents` | 创建 agent 实例 |
-| `POST /internal/agents/:id/activate` | 上线 agent，建立 Telegram 连接 |
-| `POST /internal/agents/:id/deactivate` | 下线 agent，释放连接，销毁沙箱 |
-| `POST /internal/agents/:id/im-configs` | 添加 Telegram binding（加密 bot token） |
-| `PUT /internal/im-configs/:id` | 更新 binding |
-| `DELETE /internal/im-configs/:id` | 解绑 |
+| `POST /internal/agents/:id/activate` | 将 `agents.status` 设为 `active`；为该 agent 下所有 `im_configs WHERE status='active'` 执行 lease acquire，建立 Telegram long-polling 连接 |
+| `POST /internal/agents/:id/deactivate` | 将 `agents.status` 设为 `paused`；停止该 agent 的所有 Telegram 连接并释放 lease；销毁内存 Map 中该 agent 所有 conversation 的活跃沙箱（调用 `e2b.kill`） |
+| `POST /internal/agents/:id/im-configs` | 加密 bot token 并插入 `im_configs`；若 agent 当前为 `active`，立即为新 binding 建立 Telegram 连接 |
+| `PUT /internal/im-configs/:id` | 更新 `bot_token_enc` 和/或 `chat_scope`；重建该 binding 的 Telegram 连接 |
+| `DELETE /internal/im-configs/:id` | 将 `im_configs.status` 设为 `disabled`，释放连接 |
 | `POST /internal/agents/:id/chat` | Web 测试聊天（走与 IM 相同的链路） |
 
 ---
@@ -296,6 +300,8 @@ Next.js 应用，单管理员通过 `ADMIN_API_KEY` 环境变量鉴权（输入�
 Web 测试聊天面板调用 `POST /internal/agents/:id/chat`，走与 Telegram 消息完全相同的处理路径（归一化、sandbox 调度、gateway 历史），是 MVP 最重要的 demo 功能。
 
 **对话隔离说明：** `POST /internal/agents/:id/chat` 的 `channel_key` 固定为 `web:<agent_id>:test`，`external_chat_id` 使用请求体中的 `session_id`。这意味着同一个 `session_id` 的多次请求共享同一个 conversation 和沙箱。如需多会话隔离，调用方应为每个独立会话生成不同的 `session_id`（dashboard 在页面加载时生成一次即可）。
+
+**`session_id` 校验：** 必须是非空字符串，长度 ≤ 128 字符，仅允许 `[a-zA-Z0-9_\-]`；不满足时返回 `400 invalid_request`。
 
 ---
 
@@ -343,24 +349,40 @@ app.use(express.json())
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 
+// Runtime contract: dispatcher pushes a fresh JWT before each /chat call
+app.post('/refresh-token', (req, res) => {
+  process.env.SESSION_TOKEN = req.body.token
+  res.json({ status: 'ok' })
+})
+
 app.post('/chat', async (req, res) => {
-  const gateway = new Gateway()
-  const { messages, last_message_id } = await gateway.loadMessages()
-  const userMsg = req.body.message
+  try {
+    const gateway = new Gateway()
+    const { messages, last_message_id } = await gateway.loadMessages()
+    const userMsg = req.body.message
 
-  const response = await gateway.invokeLlm({
-    model: 'gpt-4o',
-    messages: [...messages, { role: 'user', content: [{ type: 'text', text: userMsg }] }]
-  })
+    const response = await gateway.invokeLlm({
+      model: 'gpt-4o',
+      messages: [...messages, { role: 'user', content: [{ type: 'text', text: userMsg }] }]
+    })
 
-  const replyText = response.message.content[0].text
+    // 防御性提取文本：MVP 仅处理 text 内容块，忽略 tool_calls
+    const textBlock = response.message.content.find((b: any) => b.type === 'text')
+    if (!textBlock) {
+      return res.status(500).json({ error: 'LLM returned no text content' })
+      // dispatcher 的失败路径会将 inbound_jobs.status 设为 failed 并向用户发送错误提示
+    }
 
-  await gateway.appendMessages({
-    expected_last_message_id: last_message_id,
-    messages: [{ role: 'assistant', content: response.message.content, source: 'sandbox' }]
-  })
+    await gateway.appendMessages({
+      expected_last_message_id: last_message_id,
+      messages: [{ role: 'assistant', content: response.message.content, source: 'sandbox' }]
+    })
 
-  res.json({ reply: replyText })
+    res.json({ reply: textBlock.text })
+  } catch (err) {
+    // 未捕获错误：返回 500，dispatcher 进入失败路径
+    res.status(500).json({ error: 'internal error' })
+  }
 })
 
 app.listen(Number(process.env.PORT ?? 8080))
