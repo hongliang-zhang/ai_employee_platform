@@ -154,7 +154,7 @@ CREATE TABLE inbound_jobs (
   id                   TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
   channel_key          TEXT NOT NULL,
   external_message_id  TEXT NOT NULL,
-  conversation_id      TEXT REFERENCES conversations(id),
+  conversation_id      TEXT NOT NULL REFERENCES conversations(id),
   status               TEXT NOT NULL DEFAULT 'pending', -- pending | processing | done | failed
   lease_owner          TEXT,
   lease_expires_at     TIMESTAMPTZ,
@@ -188,13 +188,14 @@ getUpdates 收到 update
 归一化为 NormalizedMessage { channel_key, external_chat_id,
   external_thread_key, external_message_id, author, content }
   ↓
-INSERT INTO inbound_jobs ... ON CONFLICT DO NOTHING
+UPSERT conversations → 获取 conversation_id（先获取，保证后续插入 inbound_jobs 时 NOT NULL 约束满足）
+  ↓
+INSERT INTO inbound_jobs (channel_key, external_message_id, conversation_id, ...)
+  ON CONFLICT DO NOTHING
   → 0 rows → 重复消息，丢弃
   → 1 row  → 继续
   ↓
 UPDATE inbound_jobs SET status='processing', lease_owner=..., lease_expires_at=...
-  ↓
-UPSERT conversations → 获取 conversation_id
   ↓
 gateway.appendMessages([用户消息])  ← 写入 canonical history
   ↓
@@ -257,6 +258,21 @@ JWT payload：
 
 MVP 的处理方式：`hello-agent` 暴露一个额外端点 `POST /refresh-token { token: string }`，沙箱在收到新 token 后更新内存中的 `SESSION_TOKEN`。每次 `sandbox-orchestrator.dispatch()` 调用前，dispatcher 重新签发一个新的 JWT，先通过 `POST /refresh-token` 推送给沙箱，再发送 `POST /chat`。内存 Map 中同步更新 token 引用。`POST /refresh-token` 是 runtime contract 的一部分，所有兼容 agent 必须实现。
 
+**`POST /refresh-token` 安全说明：** 该端点仅通过 e2b SDK 内部网络由 dispatcher 调用，不对外暴露。Agent 实现应做基本格式校验（非空字符串，符合 JWT 三段式格式），拒绝明显畸形的 token；收到 `401` 时不应静默重试。
+
+**`POST /refresh-token` 失败处理：** 若返回非 200 或超时，dispatcher 视沙箱为不健康，调用 `e2b.kill(sandboxId)`，从内存 Map 中移除，然后按无活跃沙箱的路径重新创建沙箱。
+
+**Sandbox 活跃状态 Map（`sandbox-orchestrator` 模块私有）：**
+
+```typescript
+// key: conversation_id
+Map<string, {
+  sandboxId: string,       // e2b sandbox ID，用于 kill
+  sessionToken: string,    // 当前有效 JWT
+  idleTimer: NodeJS.Timeout
+}>
+```
+
 ### 5.4 Gateway API（端口 3002，供沙箱调用）
 
 所有请求需携带 `Authorization: Bearer <SESSION_TOKEN>`。
@@ -267,6 +283,31 @@ MVP 的处理方式：`hello-agent` 暴露一个额外端点 `POST /refresh-toke
 | `POST /gateway/messages/load` | 加载 conversation 历史 |
 | `POST /gateway/messages/append` | 追加消息（含 optimistic concurrency check，冲突返回 `409 { error: { code: "stale_write" } }`；SDK 不自动重试，调用方负责重新加载历史后重试） |
 | `POST /gateway/files/presign` | **MVP 返回 501** |
+
+**`POST /gateway/messages/load` 请求体：**
+```json
+{ "after_message_id": "msg_100" }  // 可选；不传则返回完整历史
+```
+**响应体：**
+```json
+{ "messages": [...], "last_message_id": "msg_102" }
+```
+
+**`POST /gateway/messages/append` 请求体：**
+```json
+{
+  "expected_last_message_id": "msg_102",  // 必填，首条消息传 null
+  "messages": [{ "role": "assistant", "content": [...], "source": "sandbox" }]
+}
+```
+**成功响应体：**
+```json
+{ "appended": [{ "id": "msg_103", "created_at": "..." }], "last_message_id": "msg_103" }
+```
+**冲突响应（409）：**
+```json
+{ "error": { "code": "stale_write", "message": "...", "retryable": false, "details": { "actual_last_message_id": "msg_105" } } }
+```
 
 ### 5.5 Internal API（端口 3001，供 dashboard 调用）
 
@@ -280,7 +321,7 @@ MVP 的处理方式：`hello-agent` 暴露一个额外端点 `POST /refresh-toke
 | `POST /internal/agents/:id/im-configs` | 加密 bot token 并插入 `im_configs`；若 agent 当前为 `active`，立即为新 binding 建立 Telegram 连接 |
 | `PUT /internal/im-configs/:id` | 更新 `bot_token_enc` 和/或 `chat_scope`；重建该 binding 的 Telegram 连接 |
 | `DELETE /internal/im-configs/:id` | 将 `im_configs.status` 设为 `disabled`，释放连接 |
-| `POST /internal/agents/:id/chat` | Web 测试聊天（走与 IM 相同的链路） |
+| `POST /internal/agents/:id/chat` | Web 测试聊天（走与 IM 相同的链路）。请求体：`{ "session_id": string, "message": string }`；`session_id` 规则见§6 |
 
 ---
 
@@ -446,7 +487,7 @@ MVP 按以下顺序实现，每步可独立验证：
 | 步骤 | 内容 | 验证方式 |
 |---|---|---|
 | 1 | DB schema + migrations | `psql` 直接查询 |
-| 2 | `gateway` 模块（JWT 验证 + `/gateway/llm` + `/gateway/messages/*`） | curl 测试 |
+| 2 | `gateway` 模块（JWT 验证 + `/gateway/llm` + `/gateway/messages/*`） | curl 测试；用 `pnpm dev-token --secret=$JWT_SECRET --conversation_id=test` 脚本（`packages/backend/scripts/mint-token.ts`）手动签发测试 JWT |
 | 3 | `agent-sdk` + `GatewayMock` | 单元测试 |
 | 4 | `hello-agent` e2b 模板 | `e2b template build` + 手动调用 `/chat` |
 | 5 | `sandbox-orchestrator`（e2b 生命周期） | 集成测试 |
