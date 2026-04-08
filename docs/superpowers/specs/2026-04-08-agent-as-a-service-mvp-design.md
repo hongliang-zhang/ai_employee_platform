@@ -217,7 +217,9 @@ sandbox-orchestrator.dispatch(conversation_id, agent_id, message)
   │           Telegram sendMessage(chat_id, "抱歉，处理失败，请稍后重试")
   │           UPDATE inbound_jobs SET status='failed'
   │           孤儿用户消息保留在 messages 表中（不清理）；
-  │           下次对话继续追加，历史不会损坏
+  │           大多数 LLM API 允许以 user 消息结尾的历史；下一条用户消息到来后，
+  │           模型会看到 [..., user_failed, user_new] 的序列，不会产生非法状态。
+  │           MVP 接受这一行为；后续可通过给孤儿消息打 metadata 标记来优化。
 ```
 
 **Optimistic lock 说明：** Dispatcher 在调用沙箱前已将用户消息写入 `messages` 表（`gateway.appendMessages`）。沙箱的 `loadMessages` 响应会包含这条用户消息，返回的 `last_message_id` 指向该消息。沙箱追加助手回复时，以该 `last_message_id` 作为 `expected_last_message_id`，从而使 optimistic concurrency check 覆盖了 dispatcher 写入用户消息这一步——这是预期行为，非竞态。
@@ -296,10 +298,11 @@ Map<string, {
 **`POST /gateway/messages/append` 请求体：**
 ```json
 {
-  "expected_last_message_id": "msg_102",  // 必填，首条消息传 null
+  "expected_last_message_id": "msg_102",  // 必填；仅当 conversation 无任何消息时可传 null
   "messages": [{ "role": "assistant", "content": [...], "source": "sandbox" }]
 }
 ```
+服务端守卫：若 `expected_last_message_id` 为 `null` 但 conversation 已有消息，返回 `409 stale_write`。
 **成功响应体：**
 ```json
 { "appended": [{ "id": "msg_103", "created_at": "..." }], "last_message_id": "msg_103" }
@@ -319,7 +322,7 @@ Map<string, {
 | `POST /internal/agents/:id/activate` | 将 `agents.status` 设为 `active`；为该 agent 下所有 `im_configs WHERE status='active'` 执行 lease acquire，建立 Telegram long-polling 连接 |
 | `POST /internal/agents/:id/deactivate` | 将 `agents.status` 设为 `paused`；停止该 agent 的所有 Telegram 连接并释放 lease；销毁内存 Map 中该 agent 所有 conversation 的活跃沙箱（调用 `e2b.kill`） |
 | `POST /internal/agents/:id/im-configs` | 加密 bot token 并插入 `im_configs`；若 agent 当前为 `active`，立即为新 binding 建立 Telegram 连接 |
-| `PUT /internal/im-configs/:id` | 更新 `bot_token_enc` 和/或 `chat_scope`；重建该 binding 的 Telegram 连接 |
+| `PUT /internal/im-configs/:id` | 更新 binding。请求体（所有字段可选）：`{ "bot_token": string, "chat_scope": "all" }`。处理顺序：先关闭旧 Telegram 连接，写库（加密新 token），再重新建立连接。若写库失败，保留旧连接。 |
 | `DELETE /internal/im-configs/:id` | 将 `im_configs.status` 设为 `disabled`，释放连接 |
 | `POST /internal/agents/:id/chat` | Web 测试聊天（走与 IM 相同的链路）。请求体：`{ "session_id": string, "message": string }`；`session_id` 规则见§6 |
 
@@ -342,7 +345,7 @@ Web 测试聊天面板调用 `POST /internal/agents/:id/chat`，走与 Telegram 
 
 **对话隔离说明：** `POST /internal/agents/:id/chat` 的 `channel_key` 固定为 `web:<agent_id>:test`，`external_chat_id` 使用请求体中的 `session_id`。这意味着同一个 `session_id` 的多次请求共享同一个 conversation 和沙箱。如需多会话隔离，调用方应为每个独立会话生成不同的 `session_id`（dashboard 在页面加载时生成一次即可）。
 
-**`session_id` 校验：** 必须是非空字符串，长度 ≤ 128 字符，仅允许 `[a-zA-Z0-9_\-]`；不满足时返回 `400 invalid_request`。
+**`session_id` 生成与校验：** Dashboard 在 agent 详情页组件 mount 时调用 `crypto.randomUUID()` 生成一次，存入 React 组件 state，随页面生命周期存在。每次刷新页面得到新 session，同一页面内所有消息共享同一 session。后端校验：非空字符串，长度 ≤ 128 字符，仅允许 `[a-zA-Z0-9_\-]`；不满足时返回 `400 invalid_request`。
 
 ---
 
@@ -390,15 +393,23 @@ app.use(express.json())
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 
-// Runtime contract: dispatcher pushes a fresh JWT before each /chat call
+// Runtime contract: dispatcher pushes a fresh JWT before each /chat call.
+// Token is stored in module-level variable (not process.env) to avoid
+// global mutation races between concurrent requests.
+let currentToken = process.env.SESSION_TOKEN ?? ''
+
 app.post('/refresh-token', (req, res) => {
-  process.env.SESSION_TOKEN = req.body.token
+  const token = req.body?.token
+  if (typeof token !== 'string' || token.split('.').length !== 3) {
+    return res.status(400).json({ error: 'invalid token format' })
+  }
+  currentToken = token
   res.json({ status: 'ok' })
 })
 
 app.post('/chat', async (req, res) => {
   try {
-    const gateway = new Gateway()
+    const gateway = new Gateway({ token: currentToken })  // use per-request token, not process.env
     const { messages, last_message_id } = await gateway.loadMessages()
     const userMsg = req.body.message
 
@@ -477,6 +488,8 @@ services:
 ```
 
 e2b 沙箱在 e2b 云端运行，本地无需额外基础设施。`hello-agent` e2b 模板通过 `cd agents/hello-agent && e2b template build` 构建一次，将生成的 `template_id` 填入 `packages/backend/migrations/001_seed_agent_types.sql`。
+
+**网络隔离部署要求：** `backend` 的 internal-api（端口 3001）只能绑定内部网络接口（Docker network 内或 `127.0.0.1`），不得对 e2b 沙箱的出口 IP 段开放。e2b 沙箱应只能访问 `backend:3002`（gateway-api）。在 Docker Compose 部署中，端口 3001 不发布到宿主机公网接口（使用 `127.0.0.1:3001:3001`）。这是安全模型的部署前提，必须在上线前验证。
 
 ---
 
