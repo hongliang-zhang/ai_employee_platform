@@ -84,6 +84,17 @@
 
 ## 4. 数据模型
 
+### 4.0 ID 格式约定
+
+所有表的主键使用 CUID2 格式，带类型前缀，例如：
+- agents: `agt_xxx`
+- im_configs: `cfg_xxx`
+- conversations: `conv_xxx`
+- messages: `msg_xxx`
+- inbound_jobs: `job_xxx`
+
+`channel_key` 由前缀 + im_config ID 拼接而成，例如：`im:cfg_abc123`
+
 ### 4.1 表定义
 
 ```sql
@@ -165,22 +176,30 @@ CREATE INDEX idx_inbound_jobs_recovery ON inbound_jobs (status, lease_expires_at
 
 ### 5.1 完整消息处理流程
 
+步骤严格按序执行（序号用于明确依赖关系）：
+
 ```
-Telegram getUpdates
+[1] Telegram getUpdates
   → 归一化：{ channel_key, external_chat_id, external_thread_key,
               external_message_id, author, content }
-  → 找到或创建 conversation（UPSERT，需先于 inbound_jobs 插入以满足 FK 约束）
-  → INSERT INTO inbound_jobs ON CONFLICT DO NOTHING
+
+[2] UPSERT conversations（必须在步骤 3 之前，以满足 inbound_jobs.conversation_id FK 约束）
+
+[3] INSERT INTO inbound_jobs ON CONFLICT DO NOTHING
       返回 0 行 → 重复消息，丢弃
-  → gateway: POST /gateway/messages/append（写入 user 消息）
+
+[4] gateway: POST /gateway/messages/append（写入 user 消息）
+      expected_last_message_id：传入当前 conversation 的最新消息 ID；
+        若该 conversation 尚无任何消息（新对话）则传 null。
       失败时重试，最多 3 次（指数退避）
       全部失败 → UPDATE inbound_jobs SET status='failed'
               → 通过 Telegram sendMessage 回复用户"服务暂时不可用，请稍后重试"
               → 终止本次处理
-  → UPDATE inbound_jobs SET status='processing', lease_owner=..., lease_expires_at=...
-  → 查找活跃 sandbox
+
+[5] UPDATE inbound_jobs SET status='processing', lease_owner=..., lease_expires_at=...
+[6] 查找活跃 sandbox（dispatcher 内存中的 Map<conversationId, { sandboxId, e2bInstance }>）
       存在 → 复用
-      不存在 → 冷启动：
+      不存在 → 冷启动（sandbox ID 仅存于内存；dispatcher 重启后所有 conversation 均触发冷启动，此为已知限制）：
           发送 Telegram sendChatAction "typing"（立即发送，掩盖冷启动延迟）
           e2b.create(template_id)
           注入 SESSION_TOKEN / GATEWAY_URL / SESSION_ID
@@ -188,13 +207,16 @@ Telegram getUpdates
           超时后 → 销毁 sandbox → UPDATE inbound_jobs SET status='failed'
                 → 通过 Telegram sendMessage 回复用户"服务暂时不可用，请稍后重试"
                 → 终止本次处理
-  → POST /chat { message } 到 sandbox（超时 60 秒）
+[7] POST /chat { message } 到 sandbox（超时 60 秒）
       超时或非 200 响应 → UPDATE inbound_jobs SET status='failed'
                        → 通过 Telegram sendMessage 回复用户"服务暂时不可用，请稍后重试"
                        → 终止本次处理（不重试，MVP 阶段）
-  → 收到响应后通过 Telegram sendMessage 回复用户
-  → UPDATE inbound_jobs SET status='done'
-  → 重置 idle timer（idle_timeout_ms 后销毁 sandbox）
+
+[8] 收到响应后通过 Telegram sendMessage 回复用户
+
+[9] UPDATE inbound_jobs SET status='done'
+
+[10] 重置 idle timer（idle_timeout_ms 后销毁 sandbox，并从内存 Map 中移除）
 ```
 
 ### 5.2 Sandbox 注入的环境变量
@@ -295,7 +317,22 @@ POST /chat { "message": "..." }
 ```json
 {
   "conversation_id": "conv_xxx",
-  "messages": [...],
+  "messages": [
+    {
+      "id": "msg_101",
+      "role": "user",
+      "content": [{ "type": "text", "text": "你好" }],
+      "source": "im",
+      "created_at": "2026-04-09T10:00:00Z"
+    },
+    {
+      "id": "msg_102",
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "你好，我可以帮你什么？" }],
+      "source": "sandbox",
+      "created_at": "2026-04-09T10:00:03Z"
+    }
+  ],
   "last_message_id": "msg_102"
 }
 ```
