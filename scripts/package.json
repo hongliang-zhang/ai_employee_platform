@@ -1,0 +1,17 @@
+{
+  "name": "@aaas/scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "tsx setup.ts"
+  },
+  "dependencies": {
+    "postgres": "^3.4.4",
+    "@paralleldrive/cuid2": "^2.2.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}
