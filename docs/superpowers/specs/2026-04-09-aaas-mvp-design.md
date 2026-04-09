@@ -186,18 +186,19 @@ CREATE INDEX idx_inbound_jobs_recovery ON inbound_jobs (status, lease_expires_at
 [2] UPSERT conversations（必须在步骤 3 之前，以满足 inbound_jobs.conversation_id FK 约束）
 
 [3] INSERT INTO inbound_jobs ON CONFLICT DO NOTHING
+      conversation_id 来自步骤 2 的 UPSERT 返回值。
       返回 0 行 → 重复消息，丢弃
 
 [4] gateway: POST /gateway/messages/append（写入 user 消息）
-      expected_last_message_id：传入当前 conversation 的最新消息 ID；
-        若该 conversation 尚无任何消息（新对话）则传 null。
+      expected_last_message_id：dispatcher 维护本地 lastMessageId 缓存（Map<conversationId, string|null>）；
+        步骤 2 创建新 conversation 时初始化为 null；后续每次 append 成功后更新为返回的 last_message_id。
       失败时重试，最多 3 次（指数退避）
       全部失败 → UPDATE inbound_jobs SET status='failed'
               → 通过 Telegram sendMessage 回复用户"服务暂时不可用，请稍后重试"
               → 终止本次处理
 
 [5] UPDATE inbound_jobs SET status='processing', lease_owner=..., lease_expires_at=...
-[6] 查找活跃 sandbox（dispatcher 内存中的 Map<conversationId, { sandboxId, e2bInstance }>）
+[6] 查找活跃 sandbox（dispatcher 内存中的 sandboxMap: Map<conversationId, { sandboxId, e2bInstance }>）
       存在 → 复用
       不存在 → 冷启动（sandbox ID 仅存于内存；dispatcher 重启后所有 conversation 均触发冷启动，此为已知限制）：
           发送 Telegram sendChatAction "typing"（立即发送，掩盖冷启动延迟）
@@ -208,6 +209,7 @@ CREATE INDEX idx_inbound_jobs_recovery ON inbound_jobs (status, lease_expires_at
                 → 通过 Telegram sendMessage 回复用户"服务暂时不可用，请稍后重试"
                 → 终止本次处理
 [7] POST /chat { message } 到 sandbox（超时 60 秒）
+      响应格式：{ "reply": "<assistant text>" }，dispatcher 读取 reply 字段投递给 Telegram。
       超时或非 200 响应 → UPDATE inbound_jobs SET status='failed'
                        → 通过 Telegram sendMessage 回复用户"服务暂时不可用，请稍后重试"
                        → 终止本次处理（不重试，MVP 阶段）
@@ -216,7 +218,8 @@ CREATE INDEX idx_inbound_jobs_recovery ON inbound_jobs (status, lease_expires_at
 
 [9] UPDATE inbound_jobs SET status='done'
 
-[10] 重置 idle timer（idle_timeout_ms 后销毁 sandbox，并从内存 Map 中移除）
+[10] 重置 idle timer（timerMap: Map<conversationId, NodeJS.Timeout>）
+      到期后调用 e2b.sandbox.kill()，并从 sandboxMap 和 timerMap 中移除对应条目
 ```
 
 ### 5.2 Sandbox 注入的环境变量
@@ -234,20 +237,28 @@ Sandbox **不持有** LLM API key、数据库连接串或任何其他凭证。
 ```json
 {
   "conversation_id": "conv_xxx",
-  "agent_id":        "agent_xxx",
+  "agent_id":        "agt_xxx",
   "exp":             "<now + 24h>"
 }
 ```
 
 算法：HS256，dispatcher 与 gateway 共享密钥（仅通过环境变量共享，不经过 HTTP）。
 
+dispatcher 签发两种 JWT：
+- **sandbox token**（注入沙箱）：`caller = "sandbox"`，`exp = now + 24h`
+- **dispatcher token**（dispatcher 自己调用 gateway）：`caller = "dispatcher"`，`exp = now + 60s`（短期）
+
 `exp` 设为固定 24 小时，而非 `idle_timeout_ms`——sandbox 可能在同一 conversation 内被多次重建，JWT 需覆盖整个对话生命周期。实际上 sandbox 的存活时间由 `idle_timeout_ms`（默认 5 分钟）约束，24 小时远超任何单次 sandbox 生命周期，安全可用。Sandbox 若收到 gateway 返回的 401，应将错误透传给 dispatcher（返回 500），由 dispatcher 标记 job failed。
 
 ### 5.4 Sandbox 空闲回收
 
-dispatcher 内存维护 `Map<conversationId, NodeJS.Timeout>`，每次 POST /chat 成功后 reset timer，到期后调用 `e2b.sandbox.kill()`。
+dispatcher 内存维护两张 Map：
+- `sandboxMap: Map<conversationId, { sandboxId, e2bInstance }>`：记录活跃 sandbox 实例
+- `timerMap: Map<conversationId, NodeJS.Timeout>`：记录空闲倒计时
 
-**已知限制**：idle timer 存储在内存中，dispatcher 重启后定时器丢失。重启前已创建的 sandbox 将成为孤儿，等待 e2b 平台自身的最大存活时间限制回收。MVP 阶段可接受此行为。
+每次 POST /chat 成功后 reset timerMap 中对应的 timer；到期后调用 `e2b.sandbox.kill()`，并从两张 Map 中移除对应条目。
+
+**已知限制**：两张 Map 均存于内存，dispatcher 重启后全部丢失。重启前已创建的 sandbox 将成为孤儿，等待 e2b 平台自身的最大存活时间限制回收。MVP 阶段可接受此行为。
 
 ### 5.5 Demo Agent 内部逻辑
 
@@ -351,7 +362,14 @@ POST /chat { "message": "..." }
 }
 ```
 
-Gateway 根据请求来源校验 `source` 字段：sandbox（通过 JWT）发起的 append 必须使用 `source='sandbox'`；dispatcher 直接调用时使用 `source='im'`。来源与 `source` 不匹配时返回 `400 invalid_request`。
+Gateway 通过 JWT payload 中的 `caller` 字段区分请求来源，并校验 `source` 字段合法性：
+
+| caller | 允许的 source | 鉴权方式 |
+|---|---|---|
+| `sandbox` | `sandbox` | Bearer JWT（sandbox 注入的 SESSION_TOKEN） |
+| `dispatcher` | `im` | Bearer JWT（dispatcher 用相同密钥签发，payload 加 `"caller": "dispatcher"`） |
+
+来源与 `source` 不匹配时返回 `400 invalid_request`。
 
 冲突时返回 `409`：
 ```json
