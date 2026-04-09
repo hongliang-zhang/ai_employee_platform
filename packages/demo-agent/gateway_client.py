@@ -28,7 +28,7 @@ class GatewayClient:
         resp.raise_for_status()
         return resp.json()
 
-    def invoke_llm(self, messages: list, model: str = "gpt-4o-mini") -> dict:
+    def invoke_llm(self, messages: list, model: str = "glm-5.1") -> dict:
         resp = requests.post(
             f"{self.base_url}/gateway/llm",
             json={"model": model, "messages": messages},

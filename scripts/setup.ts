@@ -16,10 +16,14 @@ if (!DATABASE_URL || !BOT_TOKEN_ENC_KEY || !E2B_TEMPLATE_ID) {
 
 const sql = postgres(DATABASE_URL)
 
-// Run migrations
+// Run migrations (safe to re-run)
 console.log('Running migrations...')
 const migration = readFileSync(resolve(process.cwd(), 'migrations/001_initial.sql'), 'utf8')
-await sql.unsafe(migration)
+// Wrap each CREATE TABLE/INDEX with IF NOT EXISTS
+const safeMigration = migration
+  .replace(/CREATE TABLE /g, 'CREATE TABLE IF NOT EXISTS ')
+  .replace(/CREATE INDEX /g, 'CREATE INDEX IF NOT EXISTS ')
+await sql.unsafe(safeMigration)
 console.log('Migrations complete.')
 
 // Read bot token from stdin

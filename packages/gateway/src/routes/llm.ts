@@ -1,8 +1,8 @@
 import { Router } from 'express'
 import { logger } from '../index.js'
 
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
-const ALLOWED_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo']
+const LLM_API_URL = process.env.LLM_API_URL ?? 'https://api.z.ai/api/coding/paas/v4/chat/completions'
+const ALLOWED_MODELS = ['glm-5.1']
 
 export function createLlmRouter(apiKey: string) {
   const router = Router()
@@ -20,7 +20,7 @@ export function createLlmRouter(apiKey: string) {
     logger.info({ event: 'llm.request', model, conversation_id, agent_id })
 
     try {
-      const upstream = await fetch(OPENAI_API_URL, {
+      const upstream = await fetch(LLM_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model, messages, ...(tools ? { tools } : {}), ...(tool_choice ? { tool_choice } : {}) }),
