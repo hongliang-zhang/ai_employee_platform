@@ -23,8 +23,11 @@ app.get('/health', (_req, res) => { res.json({ ok: true }) })
 app.use('/gateway/messages', auth, createMessagesRouter(db))
 app.use('/gateway/llm', auth, createLlmRouter(LLM_API_KEY))
 
-app.listen(PORT, () => {
-  logger.info({ port: PORT }, 'gateway started')
-})
+// Only start server when run directly (not imported by tests)
+if (process.env.VITEST === undefined) {
+  app.listen(PORT, () => {
+    logger.info({ port: PORT }, 'gateway started')
+  })
+}
 
 export default app
