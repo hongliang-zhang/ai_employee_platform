@@ -154,6 +154,9 @@ inbound_jobs (
   received_at         TIMESTAMPTZ DEFAULT now(),
   UNIQUE (channel_key, external_message_id)
 )
+-- 崩溃恢复扫描索引（MVP 可延后，但建议随初始 migration 一并创建）
+CREATE INDEX idx_inbound_jobs_recovery ON inbound_jobs (status, lease_expires_at)
+  WHERE status = 'processing';
 ```
 
 ---
@@ -166,19 +169,29 @@ inbound_jobs (
 Telegram getUpdates
   → 归一化：{ channel_key, external_chat_id, external_thread_key,
               external_message_id, author, content }
+  → 找到或创建 conversation（UPSERT，需先于 inbound_jobs 插入以满足 FK 约束）
   → INSERT INTO inbound_jobs ON CONFLICT DO NOTHING
       返回 0 行 → 重复消息，丢弃
-  → 找到或创建 conversation（UPSERT）
   → gateway: POST /gateway/messages/append（写入 user 消息）
+      失败时重试，最多 3 次（指数退避）
+      全部失败 → UPDATE inbound_jobs SET status='failed'
+              → 通过 Telegram sendMessage 回复用户"服务暂时不可用，请稍后重试"
+              → 终止本次处理
   → UPDATE inbound_jobs SET status='processing', lease_owner=..., lease_expires_at=...
   → 查找活跃 sandbox
       存在 → 复用
       不存在 → 冷启动：
+          发送 Telegram sendChatAction "typing"（立即发送，掩盖冷启动延迟）
           e2b.create(template_id)
           注入 SESSION_TOKEN / GATEWAY_URL / SESSION_ID
-          轮询 GET /health 直到返回 200
-          发送 Telegram sendChatAction "typing"（掩盖冷启动延迟）
-  → POST /chat { message } 到 sandbox
+          轮询 GET /health，最多 30 次（每次 1 秒间隔，共 30 秒超时）
+          超时后 → 销毁 sandbox → UPDATE inbound_jobs SET status='failed'
+                → 通过 Telegram sendMessage 回复用户"服务暂时不可用，请稍后重试"
+                → 终止本次处理
+  → POST /chat { message } 到 sandbox（超时 60 秒）
+      超时或非 200 响应 → UPDATE inbound_jobs SET status='failed'
+                       → 通过 Telegram sendMessage 回复用户"服务暂时不可用，请稍后重试"
+                       → 终止本次处理（不重试，MVP 阶段）
   → 收到响应后通过 Telegram sendMessage 回复用户
   → UPDATE inbound_jobs SET status='done'
   → 重置 idle timer（idle_timeout_ms 后销毁 sandbox）
@@ -200,26 +213,40 @@ Sandbox **不持有** LLM API key、数据库连接串或任何其他凭证。
 {
   "conversation_id": "conv_xxx",
   "agent_id":        "agent_xxx",
-  "exp":             "<now + idle_timeout_ms + 60s buffer>"
+  "exp":             "<now + 24h>"
 }
 ```
 
 算法：HS256，dispatcher 与 gateway 共享密钥（仅通过环境变量共享，不经过 HTTP）。
 
+`exp` 设为固定 24 小时，而非 `idle_timeout_ms`——sandbox 可能在同一 conversation 内被多次重建，JWT 需覆盖整个对话生命周期。实际上 sandbox 的存活时间由 `idle_timeout_ms`（默认 5 分钟）约束，24 小时远超任何单次 sandbox 生命周期，安全可用。Sandbox 若收到 gateway 返回的 401，应将错误透传给 dispatcher（返回 500），由 dispatcher 标记 job failed。
+
 ### 5.4 Sandbox 空闲回收
 
 dispatcher 内存维护 `Map<conversationId, NodeJS.Timeout>`，每次 POST /chat 成功后 reset timer，到期后调用 `e2b.sandbox.kill()`。
+
+**已知限制**：idle timer 存储在内存中，dispatcher 重启后定时器丢失。重启前已创建的 sandbox 将成为孤儿，等待 e2b 平台自身的最大存活时间限制回收。MVP 阶段可接受此行为。
 
 ### 5.5 Demo Agent 内部逻辑
 
 ```python
 POST /chat { "message": "..." }
-  → gateway.load_messages()                         # 加载完整历史
-  → 构造 messages 数组（system prompt + 历史 + 新消息）
+  → resp = gateway.load_messages()
+  # 历史中已包含 dispatcher 写入的 user 消息，无需重复添加
+  → last_id = resp["last_message_id"]
+  → 构造 messages 数组（system prompt + 完整历史）
   → gateway.invoke_llm(messages, model="gpt-4o-mini")
-  → gateway.append_messages([{ role: "assistant", content: ... }])
+  → gateway.append_messages(
+        expected_last_message_id=last_id,
+        messages=[{ "role": "assistant", "content": ..., "source": "sandbox" }]
+    )
+    # 409 stale_write：由于 dispatcher 保证按 conversation 串行处理，
+    # 正常情况下不会发生。若发生则视为 fatal error，
+    # 返回 500，由 dispatcher 标记 job failed 并通知用户。
   → return { "reply": "<assistant text>" }
 ```
+
+**重要**：dispatcher 在调用 `POST /chat` 之前已将 user 消息写入 gateway history。demo-agent 通过 `load_messages()` 获取历史时，user 消息已在其中，**不应再将 `/chat` 请求体中的 message 重新添加到 messages 数组**。
 
 ---
 
@@ -262,6 +289,8 @@ POST /chat { "message": "..." }
 { "after_message_id": "msg_100" }
 ```
 
+`after_message_id` 可选；不传时返回完整对话历史。
+
 **返回体：**
 ```json
 {
@@ -284,6 +313,8 @@ POST /chat { "message": "..." }
   ]
 }
 ```
+
+Gateway 根据请求来源校验 `source` 字段：sandbox（通过 JWT）发起的 append 必须使用 `source='sandbox'`；dispatcher 直接调用时使用 `source='im'`。来源与 `source` 不匹配时返回 `400 invalid_request`。
 
 冲突时返回 `409`：
 ```json
@@ -338,7 +369,7 @@ z-mono/
 1. 运行 DB migrations
 2. 从 stdin 读取 bot token 明文（不落日志）
 3. AES-256-GCM 加密 bot token
-4. INSERT agents（从环境变量读取 E2B_TEMPLATE_ID）
+4. INSERT agents（从环境变量 E2B_TEMPLATE_ID 读取模板 ID；setup.ts 与 dispatcher 共用此环境变量）
 5. INSERT im_configs（写入加密后的 token）
 6. 打印 "Setup complete. Start dispatcher and gateway to go live."
 ```
