@@ -1,0 +1,28 @@
+{
+  "name": "@aaas/dispatcher",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "postgres": "^3.4.4",
+    "jsonwebtoken": "^9.0.2",
+    "pino": "^9.4.0",
+    "pino-pretty": "^11.2.2",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "@e2b/code-interpreter": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
