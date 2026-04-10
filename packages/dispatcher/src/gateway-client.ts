@@ -18,6 +18,7 @@ export function createGatewayClient(gatewayUrl: string, _defaultToken?: string) 
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
     })
     const data = await res.json()
     if (!res.ok) {

@@ -16,7 +16,8 @@ beforeEach(() => vi.clearAllMocks())
 describe('SandboxOrchestrator', () => {
   it('returns existing sandbox on reuse', async () => {
     const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
-    const fakeSandbox = { sandboxId: 'sb_1', getHostname: () => 'host1' }
+    const fakeCommands = { run: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }) }
+    const fakeSandbox = { sandboxId: 'sb_1', sandboxDomain: 'e2b.app', commands: fakeCommands }
     mockCreate.mockResolvedValueOnce(fakeSandbox)
     mockFetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
 
@@ -28,7 +29,8 @@ describe('SandboxOrchestrator', () => {
 
   it('creates new sandbox when none exists', async () => {
     const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
-    const fakeSandbox = { sandboxId: 'sb_2', getHostname: () => 'host2' }
+    const fakeCommands = { run: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }) }
+    const fakeSandbox = { sandboxId: 'sb_2', sandboxDomain: 'e2b.app', commands: fakeCommands }
     mockCreate.mockResolvedValueOnce(fakeSandbox)
     mockFetch.mockResolvedValue({ ok: true })
     const result = await orch.getOrCreate('conv_2', 'tpl_x', 8080, 'tok', 300000)
@@ -39,7 +41,8 @@ describe('SandboxOrchestrator', () => {
   it('removes sandbox from map after destroy', async () => {
     const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
     const fakeKill = vi.fn().mockResolvedValue(undefined)
-    const fakeSandbox = { sandboxId: 'sb_3', getHostname: (port: number) => `host3:${port}`, kill: fakeKill }
+    const fakeCommands = { run: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }) }
+    const fakeSandbox = { sandboxId: 'sb_3', sandboxDomain: 'e2b.app', commands: fakeCommands, kill: fakeKill }
     mockCreate.mockResolvedValueOnce(fakeSandbox)
     mockFetch.mockResolvedValue({ ok: true })
     await orch.getOrCreate('conv_3', 'tpl_x', 8080, 'tok', 300000)

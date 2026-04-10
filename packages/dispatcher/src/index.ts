@@ -17,6 +17,7 @@ const DATABASE_URL = process.env.DATABASE_URL!
 const JWT_SECRET = process.env.JWT_SECRET!
 const BOT_TOKEN_ENC_KEY = process.env.BOT_TOKEN_ENC_KEY!
 const GATEWAY_URL = process.env.GATEWAY_URL!
+const GATEWAY_LOCAL_URL = process.env.GATEWAY_LOCAL_URL ?? 'http://localhost:3001'
 const E2B_API_KEY = process.env.E2B_API_KEY!
 
 const INSTANCE_ID = process.env.POD_NAME ?? `dispatcher-${createId()}`
@@ -39,7 +40,7 @@ async function main() {
   const telegram = createTelegramClient(botToken)
   const conversation = createConversationManager(db)
   const jobs = createInboundJobsManager(db, INSTANCE_ID)
-  const gateway = createGatewayClient(GATEWAY_URL)
+  const gateway = createGatewayClient(GATEWAY_LOCAL_URL)
   const sandbox = createSandboxOrchestrator({ e2bApiKey: E2B_API_KEY, gatewayUrl: GATEWAY_URL, instanceId: INSTANCE_ID })
 
   const processor = createProcessor({ conversation, jobs, gateway, sandbox, telegram, jwt, agent })

@@ -1,4 +1,5 @@
 import { Sandbox } from '@e2b/code-interpreter'
+import { retryWithBackoff } from './utils.js'
 
 interface SandboxEntry {
   sandboxId: string
@@ -17,7 +18,7 @@ export function createSandboxOrchestrator(config: {
   async function pollHealth(chatUrl: string, maxAttempts = 30): Promise<boolean> {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const res = await fetch(`${chatUrl}/health`)
+        const res = await fetch(`${chatUrl}/health`, { signal: AbortSignal.timeout(5_000) })
         if (res.ok) return true
       } catch {}
       await new Promise(r => setTimeout(r, 1000))
@@ -53,16 +54,16 @@ export function createSandboxOrchestrator(config: {
         return existing
       }
 
-      const sandbox = await Sandbox.create(templateId, {
-        apiKey: config.e2bApiKey,
-        envs: {
-          SESSION_TOKEN: sessionToken,
-          GATEWAY_URL: config.gatewayUrl,
-          SESSION_ID: conversationId,
-        },
-      })
+      // e2b API can have transient failures — retry up to 3 times
+      const sandbox = await retryWithBackoff(() =>
+        Sandbox.create(templateId, { apiKey: config.e2bApiKey })
+      )
 
-      const chatUrl = `https://${sandbox.getHostname(port)}`
+      // Start Flask app with env vars via nohup — e2b start command does not receive envs
+      const startCmd = `nohup bash -c 'GATEWAY_URL=${config.gatewayUrl} SESSION_TOKEN=${sessionToken} SESSION_ID=${conversationId} python /app/app.py' > /tmp/flask.log 2>&1 &`
+      await sandbox.commands.run(startCmd, { timeoutMs: 10000 })
+
+      const chatUrl = `https://8080-${sandbox.sandboxId}.${sandbox.sandboxDomain}`
       const ready = await pollHealth(chatUrl)
       if (!ready) {
         await sandbox.kill().catch(() => {})
