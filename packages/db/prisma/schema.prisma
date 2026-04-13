@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("users")
+}
+
+model Agent {
+  id            String   @id
+  name          String
+  status        String
+  e2bTemplateId String   @map("e2b_template_id")
+  port          Int      @default(8080)
+  idleTimeoutMs Int      @default(300000) @map("idle_timeout_ms")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  imConfigs     ImConfig[]
+  conversations Conversation[]
+
+  @@map("agents")
+}
+
+model ImConfig {
+  id             String    @id
+  agentId        String    @map("agent_id")
+  platform       String    @default("telegram")
+  botTokenEnc    String    @map("bot_token_enc")
+  chatScope      String    @default("all") @map("chat_scope")
+  status         String
+  leaseOwner     String?   @map("lease_owner")
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz()
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  agent Agent @relation(fields: [agentId], references: [id])
+
+  @@map("im_configs")
+}
+
+model Conversation {
+  id                String    @id
+  agentId           String    @map("agent_id")
+  channelKey        String    @map("channel_key")
+  externalChatId    String    @map("external_chat_id")
+  externalThreadKey String    @default("") @map("external_thread_key")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  lastMessageAt     DateTime? @map("last_message_at") @db.Timestamptz()
+
+  agent       Agent        @relation(fields: [agentId], references: [id])
+  messages    Message[]
+  inboundJobs InboundJob[]
+
+  @@unique([channelKey, externalChatId, externalThreadKey])
+  @@map("conversations")
+}
+
+model Message {
+  id                String   @id
+  conversationId    String   @map("conversation_id")
+  role              String
+  contentJson       Json     @map("content_json")
+  source            String
+  externalMessageId String?  @map("external_message_id")
+  metadataJson      Json     @default("{}") @map("metadata_json")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@map("messages")
+}
+
+model InboundJob {
+  id                String    @id
+  channelKey        String    @map("channel_key")
+  externalMessageId String    @map("external_message_id")
+  conversationId    String    @map("conversation_id")
+  status            String
+  leaseOwner        String?   @map("lease_owner")
+  leaseExpiresAt    DateTime? @map("lease_expires_at") @db.Timestamptz()
+  receivedAt        DateTime  @default(now()) @map("received_at") @db.Timestamptz()
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@unique([channelKey, externalMessageId])
+  @@map("inbound_jobs")
+}
