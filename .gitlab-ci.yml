@@ -5,7 +5,7 @@ variables:
   PNPM_VERSION: "9.0.0"
 
 .pnpm_setup:
-  image: node:22-alpine
+  image: uhub.service.ucloud.cn/wudao/ci-node:22p1
   tags:
     - dev-v1
   cache:
