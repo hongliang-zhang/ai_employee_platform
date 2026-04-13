@@ -1,0 +1,48 @@
+stages:
+  - validate
+
+variables:
+  PNPM_VERSION: "9.0.0"
+
+.pnpm_setup:
+  image: node:22-alpine
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store/
+  before_script:
+    - npm install -g pnpm@${PNPM_VERSION}
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+
+# Lint runs in parallel with tests — both must pass
+lint:
+  extends: .pnpm_setup
+  stage: validate
+  script:
+    - pnpm lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+test:
+  extends: .pnpm_setup
+  stage: validate
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: aaas
+    POSTGRES_USER: aaas
+    POSTGRES_PASSWORD: aaas
+    DATABASE_URL: postgres://aaas:aaas@postgres:5432/aaas
+    JWT_SECRET: test-secret-32-chars-minimum-len
+    LLM_API_KEY: test-key
+  script:
+    - pnpm tsx scripts/setup.ts   # run migrations before tests
+    - pnpm test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

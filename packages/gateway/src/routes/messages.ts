@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { createId } from '@paralleldrive/cuid2'
 import type { Db } from '../db.js'
-import type { JwtPayload } from '../auth.js'
 
 export function createMessagesRouter(db: Db) {
   const router = Router()

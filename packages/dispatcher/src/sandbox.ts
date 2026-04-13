@@ -20,7 +20,7 @@ export function createSandboxOrchestrator(config: {
       try {
         const res = await fetch(`${chatUrl}/health`, { signal: AbortSignal.timeout(5_000) })
         if (res.ok) return true
-      } catch {}
+      } catch { /* health check not ready yet, retry */ }
       await new Promise(r => setTimeout(r, 1000))
     }
     return false

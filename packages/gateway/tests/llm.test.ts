@@ -29,7 +29,7 @@ describe('POST /gateway/llm', () => {
       .post('/gateway/llm')
       .set('Authorization', `Bearer ${sandboxToken()}`)
       .send({
-        model: 'gpt-4o-mini',
+        model: 'glm-5.1',
         messages: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
       })
 
@@ -44,13 +44,13 @@ describe('POST /gateway/llm', () => {
     const res = await request(app)
       .post('/gateway/llm')
       .set('Authorization', `Bearer ${sandboxToken()}`)
-      .send({ model: 'gpt-4o-mini', messages: [] })
+      .send({ model: 'glm-5.1', messages: [] })
     expect(res.status).toBe(502)
     expect(res.body.error.code).toBe('provider_error')
   })
 
   it('returns 401 without token', async () => {
-    const res = await request(app).post('/gateway/llm').send({ model: 'gpt-4o-mini', messages: [] })
+    const res = await request(app).post('/gateway/llm').send({ model: 'glm-5.1', messages: [] })
     expect(res.status).toBe(401)
   })
 })

@@ -3,7 +3,7 @@ import { createSandboxOrchestrator } from '../src/sandbox.js'
 
 // Mock e2b Sandbox
 const mockCreate = vi.fn()
-const mockKill = vi.fn()
+const _mockKill = vi.fn()
 vi.mock('@e2b/code-interpreter', () => ({
   Sandbox: { create: (...args: any[]) => mockCreate(...args) },
 }))
