@@ -15,7 +15,7 @@
     "jsonwebtoken": "^9.0.2",
     "pino": "^9.4.0",
     "pino-pretty": "^11.2.2",
-    "postgres": "^3.4.4"
+    "@aaas/db": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

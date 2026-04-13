@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import request from 'supertest'
 import jwt from 'jsonwebtoken'
-import postgres from 'postgres'
+import { createPrismaClient } from '@aaas/db'
 import app from '../src/index.js'
 
 // These are integration tests — require postgres running via docker compose
 const SECRET = process.env.JWT_SECRET ?? 'test-secret-32-chars-minimum-len'
 const DB_URL = process.env.DATABASE_URL ?? 'postgres://aaas:aaas@localhost:5432/aaas'
 
-const sql = postgres(DB_URL)
+const prisma = createPrismaClient(DB_URL)
 
 function sandboxToken(convId: string, agentId: string) {
   return jwt.sign({ conversation_id: convId, agent_id: agentId, caller: 'sandbox' }, SECRET, { expiresIn: '24h' })
@@ -22,19 +22,27 @@ const CONV_ID = 'conv_test01'
 const CFG_ID = 'cfg_test01'
 
 beforeAll(async () => {
-  await sql`INSERT INTO agents (id, name, status, e2b_template_id) VALUES (${AGENT_ID}, 'test', 'active', 'tpl_x') ON CONFLICT DO NOTHING`
-  await sql`INSERT INTO conversations (id, agent_id, channel_key, external_chat_id) VALUES (${CONV_ID}, ${AGENT_ID}, ${'im:' + CFG_ID}, '123') ON CONFLICT DO NOTHING`
+  await prisma.agent.upsert({
+    where: { id: AGENT_ID },
+    create: { id: AGENT_ID, name: 'test', status: 'active', e2bTemplateId: 'tpl_x' },
+    update: {},
+  })
+  await prisma.conversation.upsert({
+    where: { id: CONV_ID },
+    create: { id: CONV_ID, agentId: AGENT_ID, channelKey: `im:${CFG_ID}`, externalChatId: '123' },
+    update: {},
+  })
 })
 
 afterAll(async () => {
-  await sql`DELETE FROM messages WHERE conversation_id = ${CONV_ID}`
-  await sql`DELETE FROM conversations WHERE id = ${CONV_ID}`
-  await sql`DELETE FROM agents WHERE id = ${AGENT_ID}`
-  await sql.end()
+  await prisma.message.deleteMany({ where: { conversationId: CONV_ID } })
+  await prisma.conversation.deleteMany({ where: { id: CONV_ID } })
+  await prisma.agent.deleteMany({ where: { id: AGENT_ID } })
+  await prisma.$disconnect()
 })
 
 beforeEach(async () => {
-  await sql`DELETE FROM messages WHERE conversation_id = ${CONV_ID}`
+  await prisma.message.deleteMany({ where: { conversationId: CONV_ID } })
 })
 
 describe('POST /gateway/messages/load', () => {
@@ -50,7 +58,9 @@ describe('POST /gateway/messages/load', () => {
 
   it('returns messages in order', async () => {
     const MSG_ID = 'msg_test01'
-    await sql`INSERT INTO messages (id, conversation_id, role, content_json, source) VALUES (${MSG_ID}, ${CONV_ID}, 'user', ${sql.json([{ type: 'text', text: 'hello' }])}, 'im')`
+    await prisma.message.create({
+      data: { id: MSG_ID, conversationId: CONV_ID, role: 'user', contentJson: [{ type: 'text', text: 'hello' }], source: 'im' },
+    })
     const res = await request(app)
       .post('/gateway/messages/load')
       .set('Authorization', `Bearer ${sandboxToken(CONV_ID, AGENT_ID)}`)
@@ -78,7 +88,9 @@ describe('POST /gateway/messages/append', () => {
 
   it('returns 409 on stale_write', async () => {
     const MSG_ID = 'msg_stale01'
-    await sql`INSERT INTO messages (id, conversation_id, role, content_json, source) VALUES (${MSG_ID}, ${CONV_ID}, 'user', ${sql.json([{ type: 'text', text: 'hi' }])}, 'im')`
+    await prisma.message.create({
+      data: { id: MSG_ID, conversationId: CONV_ID, role: 'user', contentJson: [{ type: 'text', text: 'hi' }], source: 'im' },
+    })
     const res = await request(app)
       .post('/gateway/messages/append')
       .set('Authorization', `Bearer ${sandboxToken(CONV_ID, AGENT_ID)}`)

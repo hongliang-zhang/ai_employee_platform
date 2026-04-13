@@ -9,21 +9,38 @@ export function createMessagesRouter(db: Db) {
     const { conversation_id } = req.jwtPayload
     const { after_message_id } = req.body ?? {}
     try {
-      const rows = after_message_id
-        ? await db`
-            SELECT id, role, content_json as content, source, external_message_id, metadata_json as metadata, created_at
-            FROM messages
-            WHERE conversation_id = ${conversation_id}
-              AND created_at > (SELECT created_at FROM messages WHERE id = ${after_message_id})
-            ORDER BY created_at ASC`
-        : await db`
-            SELECT id, role, content_json as content, source, external_message_id, metadata_json as metadata, created_at
-            FROM messages
-            WHERE conversation_id = ${conversation_id}
-            ORDER BY created_at ASC`
+      let rows
+      if (after_message_id) {
+        const anchor = await db.message.findUnique({
+          where: { id: after_message_id },
+          select: { createdAt: true },
+        })
+        if (!anchor) {
+          res.status(404).json({ error: { code: 'not_found', message: 'after_message_id not found', retryable: false, details: {} } })
+          return
+        }
+        rows = await db.message.findMany({
+          where: { conversationId: conversation_id, createdAt: { gt: anchor.createdAt } },
+          orderBy: { createdAt: 'asc' },
+        })
+      } else {
+        rows = await db.message.findMany({
+          where: { conversationId: conversation_id },
+          orderBy: { createdAt: 'asc' },
+        })
+      }
 
-      const last = rows.length > 0 ? rows[rows.length - 1].id : null
-      res.json({ conversation_id, messages: rows, last_message_id: last })
+      const formatted = rows.map(r => ({
+        id: r.id,
+        role: r.role,
+        content: r.contentJson,
+        source: r.source,
+        external_message_id: r.externalMessageId,
+        metadata: r.metadataJson,
+        created_at: r.createdAt,
+      }))
+      const last = formatted.length > 0 ? formatted[formatted.length - 1].id : null
+      res.json({ conversation_id, messages: formatted, last_message_id: last })
     } catch (err) {
       res.status(500).json({ error: { code: 'internal_error', message: String(err), retryable: true, details: {} } })
     }
@@ -44,11 +61,11 @@ export function createMessagesRouter(db: Db) {
 
     try {
       // Check current head
-      const [head] = await db`
-        SELECT id FROM messages
-        WHERE conversation_id = ${conversation_id}
-        ORDER BY created_at DESC
-        LIMIT 1`
+      const head = await db.message.findFirst({
+        where: { conversationId: conversation_id },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      })
       const actualHead = head?.id ?? null
 
       if (actualHead !== (expected_last_message_id ?? null)) {
@@ -63,16 +80,24 @@ export function createMessagesRouter(db: Db) {
         return
       }
 
-      // Insert messages
+      // Insert messages sequentially to preserve order
       const now = new Date()
       const inserted = []
       for (const m of messages) {
         const id = 'msg_' + createId()
-        await db`
-          INSERT INTO messages (id, conversation_id, role, content_json, source, external_message_id, metadata_json, created_at)
-          VALUES (${id}, ${conversation_id}, ${m.role}, ${db.json(m.content)}, ${m.source}, ${m.external_message_id ?? null}, ${db.json(m.metadata ?? {})}, ${now})`
+        await db.message.create({
+          data: {
+            id,
+            conversationId: conversation_id,
+            role: m.role,
+            contentJson: m.content,
+            source: m.source,
+            externalMessageId: m.external_message_id ?? null,
+            metadataJson: m.metadata ?? {},
+            createdAt: new Date(now),
+          },
+        })
         inserted.push({ id, role: m.role, created_at: now.toISOString() })
-        // Advance timestamp to preserve insert order
         now.setMilliseconds(now.getMilliseconds() + 1)
       }
 
