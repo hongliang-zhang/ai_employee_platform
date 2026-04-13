@@ -43,6 +43,7 @@ test:
     JWT_SECRET: test-secret-32-chars-minimum-len
     LLM_API_KEY: test-key
   script:
+    - pnpm --filter @aaas/db exec prisma generate
     - pnpm tsx scripts/setup.ts   # run migrations before tests
     - pnpm test
   rules:
