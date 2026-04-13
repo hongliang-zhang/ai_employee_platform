@@ -33,7 +33,7 @@ test:
   extends: .pnpm_setup
   stage: validate
   services:
-    - name: postgres:16-alpine
+    - name: uhub.service.ucloud.cn/wudao/ci-postgres:16p1
       alias: postgres
   variables:
     POSTGRES_DB: aaas
