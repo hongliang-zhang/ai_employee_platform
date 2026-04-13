@@ -6,6 +6,8 @@ variables:
 
 .pnpm_setup:
   image: node:22-alpine
+  tags:
+    - dev-v1
   cache:
     key:
       files:
