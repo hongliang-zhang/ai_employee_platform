@@ -14,22 +14,20 @@ export function createConversationManager(db: Db) {
       const { agentId, channelKey, externalChatId, externalThreadKey } = params
       const id = 'conv_' + createId()
 
-      const [row] = await db`
-        INSERT INTO conversations (id, agent_id, channel_key, external_chat_id, external_thread_key)
-        VALUES (${id}, ${agentId}, ${channelKey}, ${externalChatId}, ${externalThreadKey})
-        ON CONFLICT (channel_key, external_chat_id, external_thread_key) DO UPDATE
-          SET last_message_at = now()
-        RETURNING id`
+      const conversation = await db.conversation.upsert({
+        where: { channelKey_externalChatId_externalThreadKey: { channelKey, externalChatId, externalThreadKey } },
+        create: { id, agentId, channelKey, externalChatId, externalThreadKey },
+        update: { lastMessageAt: new Date() },
+        select: { id: true },
+      })
 
-      const conversationId = row.id
+      const conversationId = conversation.id
       if (!lastMessageIdCache.has(conversationId)) {
-        // Cache miss — could be a new conversation OR dispatcher restart with existing data.
-        // Fetch actual last message ID from DB to avoid stale_write 409 on append.
-        const [lastMsg] = await db`
-          SELECT id FROM messages
-          WHERE conversation_id = ${conversationId}
-          ORDER BY created_at DESC
-          LIMIT 1`
+        const lastMsg = await db.message.findFirst({
+          where: { conversationId },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        })
         lastMessageIdCache.set(conversationId, lastMsg?.id ?? null)
       }
       return { conversationId, lastMessageId: lastMessageIdCache.get(conversationId) ?? null }

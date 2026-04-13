@@ -9,7 +9,7 @@ const mockSandbox = { getOrCreate: vi.fn(), destroy: vi.fn() }
 const mockTelegram = { sendMessage: vi.fn(), sendChatAction: vi.fn() }
 const mockJwt = { signSandboxToken: vi.fn(), signDispatcherToken: vi.fn() }
 
-const AGENT = { id: 'agt_1', e2b_template_id: 'tpl_1', port: 8080, idle_timeout_ms: 300000 }
+const AGENT = { id: 'agt_1', e2bTemplateId: 'tpl_1', port: 8080, idleTimeoutMs: 300000 }
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -54,6 +54,7 @@ describe('processor.handle', () => {
       chatUrl: 'http://sandbox',
       instance: {},
     })
+    mockGateway.loadMessages.mockResolvedValueOnce({ last_message_id: 'msg_2' })
     const mockFetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ reply: 'Hi!' }) })
     vi.stubGlobal('fetch', mockFetch)
 

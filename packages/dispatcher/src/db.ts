@@ -1,7 +1,4 @@
-import postgres from 'postgres'
+import { createPrismaClient } from '@aaas/db'
 
-export function createDb(connectionString: string) {
-  return postgres(connectionString)
-}
-
-export type Db = ReturnType<typeof createDb>
+export { createPrismaClient as createDb }
+export type { Db } from '@aaas/db'

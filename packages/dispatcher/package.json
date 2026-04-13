@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "express": "^4.21.0",
-    "postgres": "^3.4.4",
+    "@aaas/db": "workspace:*",
     "jsonwebtoken": "^9.0.2",
     "pino": "^9.4.0",
     "pino-pretty": "^11.2.2",

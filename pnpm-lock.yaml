@@ -36,6 +36,9 @@ importers:
 
   packages/dispatcher:
     dependencies:
+      '@aaas/db':
+        specifier: workspace:*
+        version: link:../db
       '@e2b/code-interpreter':
         specifier: ^1.0.0
         version: 1.5.1
@@ -54,9 +57,6 @@ importers:
       pino-pretty:
         specifier: ^11.2.2
         version: 11.3.0
-      postgres:
-        specifier: ^3.4.4
-        version: 3.4.9
     devDependencies:
       '@types/express':
         specifier: ^4.17.21

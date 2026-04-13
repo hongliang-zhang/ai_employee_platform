@@ -7,9 +7,9 @@ const logger = pino({ transport: { target: 'pino-pretty' } })
 
 interface Agent {
   id: string
-  e2b_template_id: string
+  e2bTemplateId: string
   port: number
-  idle_timeout_ms: number
+  idleTimeoutMs: number
 }
 
 export function createProcessor(deps: {
@@ -76,7 +76,7 @@ export function createProcessor(deps: {
       let reply: string
       try {
         reply = await retryWithBackoff(async () => {
-          const entry = await sandbox.getOrCreate(conversationId, agent.e2b_template_id, agent.port, sandboxToken, agent.idle_timeout_ms)
+          const entry = await sandbox.getOrCreate(conversationId, agent.e2bTemplateId, agent.port, sandboxToken, agent.idleTimeoutMs)
           const res = await fetch(`${entry.chatUrl}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Trace-Id': traceId },

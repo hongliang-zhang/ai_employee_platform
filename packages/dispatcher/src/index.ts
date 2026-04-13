@@ -28,13 +28,19 @@ async function main() {
   const enc = createEncryptor(BOT_TOKEN_ENC_KEY)
 
   // Load active agent and im_config from DB
-  const [agent] = await db`SELECT id, e2b_template_id, port, idle_timeout_ms FROM agents WHERE status = 'active' LIMIT 1`
+  const agent = await db.agent.findFirst({
+    where: { status: 'active' },
+    select: { id: true, e2bTemplateId: true, port: true, idleTimeoutMs: true },
+  })
   if (!agent) throw new Error('No active agent found — run setup.ts first')
 
-  const [cfg] = await db`SELECT id, bot_token_enc FROM im_configs WHERE agent_id = ${agent.id} AND status = 'active' LIMIT 1`
+  const cfg = await db.imConfig.findFirst({
+    where: { agentId: agent.id, status: 'active' },
+    select: { id: true, botTokenEnc: true },
+  })
   if (!cfg) throw new Error('No active im_config found — run setup.ts first')
 
-  const botToken = enc.decrypt(cfg.bot_token_enc)
+  const botToken = enc.decrypt(cfg.botTokenEnc)
   const channelKey = `im:${cfg.id}`
 
   const telegram = createTelegramClient(botToken)
