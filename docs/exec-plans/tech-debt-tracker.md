@@ -1,0 +1,56 @@
+# Tech Debt Tracker
+
+Known issues and deferred work. Each item includes context so future agents can make informed decisions.
+
+---
+
+## Active debt
+
+### [TD-001] Sandbox map is in-memory only
+
+**Location:** `packages/dispatcher/src/sandbox.ts`
+**Impact:** Medium — on dispatcher restart, all active sandboxes are lost. The next user message recreates the sandbox (transparent to users but adds ~30s latency).
+**Why deferred:** MVP scope. Acceptable for single-instance deployment.
+**Resolution path:** Persist sandbox IDs to DB or Redis; on startup, reconnect to existing sandboxes via `Sandbox.connect(sandboxId)`.
+
+---
+
+### [TD-002] No horizontal scaling for dispatcher
+
+**Location:** `packages/dispatcher/src/`
+**Impact:** Medium — only one dispatcher instance can run. `inbound_jobs` lease recovery logic exists (`idx_inbound_jobs_recovery` index) but is not exercised.
+**Why deferred:** MVP runs single instance.
+**Resolution path:** Add a background recovery loop that queries stale `processing` jobs and reprocesses them.
+
+---
+
+### [TD-003] `lastMessageId` cache not persisted
+
+**Location:** `packages/dispatcher/src/conversation.ts`
+**Impact:** Low — on dispatcher restart, the cache is empty. The first `appendMessages` call will use `null` as `expected_last_message_id`, which succeeds only if no race is happening. Sandboxes always reload from gateway, so they are unaffected.
+**Why deferred:** MVP scope; race window is narrow.
+**Resolution path:** Persist `last_message_id` in the `conversations` table and load on startup.
+
+---
+
+### [TD-004] No `gen-schema.ts` script
+
+**Location:** `scripts/` (missing)
+**Impact:** Low — `docs/generated/db-schema.md` must be updated manually after migrations.
+**Why deferred:** Small team, single migration file.
+**Resolution path:** Write `scripts/gen-schema.ts` that reads `migrations/*.sql` and regenerates `docs/generated/db-schema.md`.
+
+---
+
+### [TD-005] `demo-agent` system prompt is hardcoded
+
+**Location:** `packages/demo-agent/app.py:5`
+**Impact:** Low — the system prompt `"You are a helpful assistant."` cannot be configured per-agent without modifying the template.
+**Why deferred:** MVP uses a single agent.
+**Resolution path:** Pass system prompt via env var set at sandbox start time in `sandbox.ts`.
+
+---
+
+## Resolved debt
+
+_(none yet)_
