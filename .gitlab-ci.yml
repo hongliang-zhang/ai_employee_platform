@@ -44,7 +44,7 @@ test:
     LLM_API_KEY: test-key
   script:
     - pnpm --filter @aaas/db exec prisma generate
-    - pnpm tsx scripts/setup.ts   # run migrations before tests
+    - pnpm --filter @aaas/db exec prisma migrate deploy
     - pnpm test
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
