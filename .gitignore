@@ -3,6 +3,7 @@
 # ------------------------------
 node_modules/
 .pnpm-store/
+package-lock.json
 .npm/
 .yarn/
 .yarn/cache/
