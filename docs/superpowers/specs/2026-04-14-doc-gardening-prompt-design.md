@@ -65,8 +65,9 @@
 
 对 `docs/exec-plans/active/` 里每个计划：
 
-**关键词提取**：从文件名中去掉日期前缀和扩展名作为搜索关键词。  
-例：`2026-04-14-doc-gardening.md` → 关键词 `doc-gardening`
+**关键词提取**：从文件名中去掉日期前缀（`YYYY-MM-DD-`）和扩展名（`.md`）作为搜索关键词。  
+例：`2026-04-14-doc-gardening.md` → 关键词 `doc-gardening`  
+若关键词包含多个词段（如 `sandbox-persistent-storage`），先用完整关键词搜索，无结果时用第一个词段重试（如 `sandbox`）。
 
 **Step 1 — checkboxes**
 ```bash
@@ -78,27 +79,28 @@ grep "- \[ \]" <plan-file>
 **Step 2 — git log**
 ```bash
 git log --oneline | grep -i "<feature-keyword>"
-# 有匹配行 → 有提交证据
+# 至少 1 行匹配 → 有提交证据
+# 无匹配 → 无提交证据
 ```
 
 **Step 3 — 关键文件存在性**
 
-读 plan 文件中的 `## File Structure` 章节（所有 exec plan 均有此章节，格式为 Markdown 表格），抽取 3-5 个 `Create` 或 `Modify` 类型的核心文件路径，用 `ls` 验证：
+读 plan 文件中的 `## File Structure` 章节（所有 exec plan 均有此章节，格式为 Markdown 表格）。从表格中抽取标注为 `Create` 或 `Modify` 的行，取前 5 个文件路径（不足 3 个则全取），用 `ls` 验证：
 ```bash
 ls <key-file-from-plan>
-# 文件存在 → 功能已落地
+# 至少 1 个文件存在 → 功能已落地
 ```
 
 **判定逻辑（优先级从高到低）：**
 
 | 条件 | 结论 |
 |------|------|
-| Step 1 全勾 AND Step 3 文件存在 | **归档**：移动到 `completed/` |
-| Step 1 有未勾选，AND Step 2 有 commits AND Step 3 文件存在 | **归档**：工作已完成但 checkbox 未更新，一并更新后归档 |
-| Step 1 全勾，但 Step 3 文件不存在 | **不归档**：加 `<!-- DOC-GARDENING: checkboxes 全勾但 <files> 不存在，需人工确认 -->` |
+| Step 1 全勾 AND Step 3 至少 1 个文件存在 | **归档**：移动到 `docs/exec-plans/completed/` |
+| Step 1 有未勾选，AND Step 2 有 ≥1 commits AND Step 3 至少 1 个文件存在 | **归档**：工作已完成但 checkbox 未更新，一并更新后归档到 `docs/exec-plans/completed/` |
+| Step 1 全勾，但 Step 3 文件全不存在 | **不归档**：加 `<!-- DOC-GARDENING: checkboxes 全勾但 <files> 均不存在，需人工确认 -->` |
 | Step 1 有未勾选，且 Step 2/3 证据不足 | **不归档** |
 
-> 具体示例：`2026-04-14-gateway-hardening.md` → 关键词 `gateway-hardening`，验证 `git log --oneline | grep -i "gateway-hardening"` 是否有结果，`ls packages/gateway/src/middleware/rateLimit.ts`（从 File Structure 表抽取）是否存在。
+> 具体示例：`2026-04-14-gateway-hardening.md` → 关键词 `gateway-hardening`，验证 `git log --oneline | grep -i "gateway-hardening"` 是否有结果，从 File Structure 表取前 5 个 Create/Modify 路径（如 `packages/gateway/src/middleware/rateLimit.ts`）并 `ls` 验证。
 
 ### 2.2 Product Spec 状态更新
 
@@ -107,15 +109,16 @@ ls <key-file-from-plan>
 **关联 exec plan**：
 - 从 spec 文件名（去掉扩展名）作为关键词，在 `docs/exec-plans/` 下搜索包含该关键词的文件
 - 例：`doc-gardening.md` → 搜索 `docs/exec-plans/**/*doc-gardening*`
-- 若无匹配：使用 spec 文件名关键词直接搜索 `git log --oneline | grep -i "<keyword>"`
+- 若多个匹配，取文件名日期最新的
+- 若无匹配，使用 spec 文件名关键词搜索 `git log --oneline | grep -i "<keyword>"`
 
 **状态转移规则：**
 
 | 当前状态 | 条件 | 目标状态 |
 |---------|------|---------|
-| Draft | 对应 exec plan 存在于 `active/` 且有相关 commits | Active |
-| Active | 对应 exec plan 已归档到 `completed/` | Completed |
-| Draft 或 Active | 无对应 exec plan，但 git log 有相关 commits 且 spec 中描述的至少一个核心组件文件存在 | Completed |
+| Draft | 对应 exec plan 存在于 `active/` 且 git log 有 ≥1 相关 commits | Active |
+| Active | 对应 exec plan 已归档到 `docs/exec-plans/completed/` | Completed |
+| Draft 或 Active | 无对应 exec plan，但 git log 有 ≥1 相关 commits | Completed |
 | 任何状态 | 信号不一致或无法判断 | 不修改，加 `<!-- DOC-GARDENING: -->` 标注 |
 
 ---
