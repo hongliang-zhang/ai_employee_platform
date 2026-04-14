@@ -65,38 +65,49 @@
 
 对 `docs/exec-plans/active/` 里每个计划：
 
+**关键词提取**：从文件名中去掉日期前缀和扩展名作为搜索关键词。  
+例：`2026-04-14-doc-gardening.md` → 关键词 `doc-gardening`
+
 **Step 1 — checkboxes**
 ```bash
 grep "- \[ \]" <plan-file>
-# 有输出 → 仍有未完成步骤，停止检测
+# 无输出 → checkboxes 全勾，进入 Step 2/3
+# 有输出 → 仍有未完成步骤
 ```
 
 **Step 2 — git log**
 ```bash
-git log --oneline | grep -i <feature-keyword>
-# 有相关 commit → 有实现证据
+git log --oneline | grep -i "<feature-keyword>"
+# 有匹配行 → 有提交证据
 ```
 
 **Step 3 — 关键文件存在性**
 
-读 plan 的 File Structure 表，抽取 3-5 个核心文件路径，用 `ls` 验证：
+读 plan 文件中的 `## File Structure` 章节（所有 exec plan 均有此章节，格式为 Markdown 表格），抽取 3-5 个 `Create` 或 `Modify` 类型的核心文件路径，用 `ls` 验证：
 ```bash
 ls <key-file-from-plan>
+# 文件存在 → 功能已落地
 ```
 
-**判定规则：**
+**判定逻辑（优先级从高到低）：**
 
 | 条件 | 结论 |
 |------|------|
-| Step 1 有未勾选 checkbox | 不归档 |
-| Step 1 全勾选，或（Step 2 有 commits AND Step 3 文件存在） | 移动到 `completed/` |
-| 信号矛盾（如 checkboxes 全勾但文件不存在） | 加 `<!-- DOC-GARDENING: -->` 标注，不移动，人工确认 |
+| Step 1 全勾 AND Step 3 文件存在 | **归档**：移动到 `completed/` |
+| Step 1 有未勾选，AND Step 2 有 commits AND Step 3 文件存在 | **归档**：工作已完成但 checkbox 未更新，一并更新后归档 |
+| Step 1 全勾，但 Step 3 文件不存在 | **不归档**：加 `<!-- DOC-GARDENING: checkboxes 全勾但 <files> 不存在，需人工确认 -->` |
+| Step 1 有未勾选，且 Step 2/3 证据不足 | **不归档** |
+
+> 具体示例：`2026-04-14-gateway-hardening.md` → 关键词 `gateway-hardening`，验证 `git log --oneline | grep -i "gateway-hardening"` 是否有结果，`ls packages/gateway/src/middleware/rateLimit.ts`（从 File Structure 表抽取）是否存在。
 
 ### 2.2 Product Spec 状态更新
 
 对 `docs/product-specs/` 下每个 spec（除 `index.md`）：
 
-**关联 exec plan**：通过文件名关键词匹配，如 `doc-gardening.md` ↔ `*doc-gardening*.md`。
+**关联 exec plan**：
+- 从 spec 文件名（去掉扩展名）作为关键词，在 `docs/exec-plans/` 下搜索包含该关键词的文件
+- 例：`doc-gardening.md` → 搜索 `docs/exec-plans/**/*doc-gardening*`
+- 若无匹配：使用 spec 文件名关键词直接搜索 `git log --oneline | grep -i "<keyword>"`
 
 **状态转移规则：**
 
@@ -104,7 +115,8 @@ ls <key-file-from-plan>
 |---------|------|---------|
 | Draft | 对应 exec plan 存在于 `active/` 且有相关 commits | Active |
 | Active | 对应 exec plan 已归档到 `completed/` | Completed |
-| Draft | 无 exec plan，但 git log 有相关 commits 且核心文件存在 | Completed |
+| Draft 或 Active | 无对应 exec plan，但 git log 有相关 commits 且 spec 中描述的至少一个核心组件文件存在 | Completed |
+| 任何状态 | 信号不一致或无法判断 | 不修改，加 `<!-- DOC-GARDENING: -->` 标注 |
 
 ---
 
@@ -130,11 +142,13 @@ ls <key-file-from-plan>
 
 ```
 === DOC GARDENING SUMMARY ===
-[ARCHIVED]   docs/exec-plans/active/xxx.md → completed/
-[STATUS]     docs/product-specs/xxx.md: Draft → Active
-[FIXED]      ARCHITECTURE.md: <描述>
-[NO-CHANGE]  docs/QUALITY_SCORE.md: 与实际一致，无需修改
-[FLAGGED]    docs/exec-plans/active/xxx.md: <信号矛盾描述>
+[ARCHIVED]   docs/exec-plans/active/2026-04-14-gateway-hardening.md → completed/
+             依据：checkboxes 全勾 + packages/gateway/src/middleware/rateLimit.ts 存在
+[STATUS]     docs/product-specs/doc-gardening.md: Draft → Active
+             依据：对应 exec plan 在 active/ 且有 doc-gardening commits
+[FIXED]      ARCHITECTURE.md: 补充 POST /gateway/storage/presign 路由（代码存在但文档缺失）
+[NO-CHANGE]  docs/QUALITY_SCORE.md: 测试文件与评级一致，无需修改
+[FLAGGED]    docs/exec-plans/active/2026-04-14-doc-gardening.md: checkboxes 全勾但 scripts/doc-gardening/run.ts 不存在，需人工确认
 =============================
 ```
 
