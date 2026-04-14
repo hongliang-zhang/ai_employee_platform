@@ -19,6 +19,18 @@ variables:
     - pnpm config set store-dir .pnpm-store
     - pnpm install --frozen-lockfile
 
+# Doc checks: cross-link validity + index consistency
+# Runs in parallel with lint and test
+doc-check:
+  extends: .pnpm_setup
+  stage: validate
+  script:
+    - pnpm tsx scripts/check-doc-links.ts
+    - pnpm tsx scripts/check-doc-index.ts
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
 # Lint runs in parallel with tests — both must pass
 lint:
   extends: .pnpm_setup

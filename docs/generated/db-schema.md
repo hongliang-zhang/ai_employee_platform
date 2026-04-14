@@ -2,7 +2,7 @@
 
 > Auto-generated from `migrations/`. Do not edit manually — regenerate with `pnpm tsx scripts/gen-schema.ts` (TODO: add this script).
 
-Source of truth: [`migrations/001_initial.sql`](../../migrations/001_initial.sql)
+Source of truth: [`packages/db/prisma/migrations/`](../../packages/db/prisma/migrations/)
 
 ---
 
