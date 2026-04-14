@@ -85,11 +85,12 @@ git log --oneline | grep -i "<feature-keyword>"
 
 **Step 3 — 关键文件存在性**
 
-读 plan 文件中的 `## File Structure` 章节（所有 exec plan 均有此章节，格式为 Markdown 表格）。从表格中抽取标注为 `Create` 或 `Modify` 的行，取前 5 个文件路径（不足 3 个则全取），用 `ls` 验证：
+读 plan 文件中的 `## File Structure` 章节（所有标准 exec plan 均有此章节，格式为 Markdown 表格）。从表格中抽取标注为 `Create` 或 `Modify` 的行，取前 5 个文件路径（不足 3 个则全取），用 `ls` 验证：
 ```bash
 ls <key-file-from-plan>
 # 至少 1 个文件存在 → 功能已落地
 ```
+若 plan 文件中不存在 `## File Structure` 章节，跳过 Step 3，仅依赖 Step 1（checkboxes）和 Step 2（git log）判定。
 
 **判定逻辑（优先级从高到低）：**
 
@@ -111,14 +112,17 @@ ls <key-file-from-plan>
 - 例：`doc-gardening.md` → 搜索 `docs/exec-plans/**/*doc-gardening*`
 - 若多个匹配，取文件名日期最新的
 - 若无匹配，使用 spec 文件名关键词搜索 `git log --oneline | grep -i "<keyword>"`
+- 若 git log 也无匹配 → 对该 spec 不做任何状态修改，跳过
 
 **状态转移规则：**
 
+> 前两行适用于"找到对应 exec plan"的情况；第三行是"无对应 exec plan"的 fallback，依赖 git log 单独判断。
+
 | 当前状态 | 条件 | 目标状态 |
 |---------|------|---------|
-| Draft | 对应 exec plan 存在于 `active/` 且 git log 有 ≥1 相关 commits | Active |
+| Draft | 对应 exec plan 存在于 `active/`（且 git log 有 ≥1 相关 commits） | Active |
 | Active | 对应 exec plan 已归档到 `docs/exec-plans/completed/` | Completed |
-| Draft 或 Active | 无对应 exec plan，但 git log 有 ≥1 相关 commits | Completed |
+| Draft 或 Active | 无对应 exec plan，且 git log 有 ≥1 相关 commits | Completed |
 | 任何状态 | 信号不一致或无法判断 | 不修改，加 `<!-- DOC-GARDENING: -->` 标注 |
 
 ---
