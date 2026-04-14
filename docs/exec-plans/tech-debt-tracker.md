@@ -51,6 +51,15 @@ Known issues and deferred work. Each item includes context so future agents can 
 
 ---
 
+### [TD-006] `append` 乐观并发校验存在竞态窗口
+
+**Location:** `packages/gateway/src/routes/messages.ts` — `POST /append`
+**Impact:** Low — 两个并发写入请求可能同时通过 `expected_last_message_id` 校验，导致消息时间戳冲突或写入顺序错乱。MVP 场景下 dispatcher 和 sandbox 的写入基本串行，实际触发概率极低。
+**Why deferred:** MVP 低并发场景下风险可接受；修复需引入数据库事务或行锁，增加复杂度。
+**Resolution path:** 将「查 head + 写入」包在同一个数据库事务中，或对 `conversationId` 加行级锁（`SELECT ... FOR UPDATE`），保证原子性。
+
+---
+
 ## Resolved debt
 
 _(none yet)_
