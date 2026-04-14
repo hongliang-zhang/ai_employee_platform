@@ -113,7 +113,7 @@ export async function runDocGardening(
     `)
 
     await sandbox.commands.run(
-      `cd ${REPO_DIR} && git push origin ${branch}`,
+      `cd ${REPO_DIR} && git push origin ${branch} --force-with-lease`,
       { timeoutMs: 60_000 },
     )
 

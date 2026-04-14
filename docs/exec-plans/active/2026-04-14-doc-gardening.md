@@ -82,7 +82,7 @@ import { loadConfig } from './config.js'
 describe('loadConfig', () => {
   it('returns config when all required env vars are set', () => {
     const env = {
-      ANTHROPIC_API_KEY: 'sk-ant-test',
+      ZHIPU_API_KEY: 'zhipu-test-key',
       E2B_API_KEY: 'e2b_test',
       GITLAB_TOKEN: 'glpat-test',
       GITLAB_PROJECT_ID: '42',
@@ -90,7 +90,7 @@ describe('loadConfig', () => {
       GIT_CLONE_URL: 'https://gitlab.example.com/z-mono.git',
     }
     const config = loadConfig(env)
-    expect(config.anthropicApiKey).toBe('sk-ant-test')
+    expect(config.zhipuApiKey).toBe('zhipu-test-key')
     expect(config.e2bApiKey).toBe('e2b_test')
     expect(config.gitlabToken).toBe('glpat-test')
     expect(config.gitlabProjectId).toBe('42')
@@ -104,7 +104,7 @@ describe('loadConfig', () => {
 
   it('uses default GITLAB_URL when not provided', () => {
     const env = {
-      ANTHROPIC_API_KEY: 'sk-ant-test',
+      ZHIPU_API_KEY: 'zhipu-test-key',
       E2B_API_KEY: 'e2b_test',
       GITLAB_TOKEN: 'glpat-test',
       GITLAB_PROJECT_ID: '42',
@@ -127,7 +127,7 @@ Create `scripts/doc-gardening/config.ts`:
 
 ```typescript
 export interface DocGardeningConfig {
-  anthropicApiKey: string
+  zhipuApiKey: string
   e2bApiKey: string
   gitlabToken: string
   gitlabProjectId: string
@@ -138,7 +138,7 @@ export interface DocGardeningConfig {
 }
 
 const REQUIRED_VARS = [
-  'ANTHROPIC_API_KEY',
+  'ZHIPU_API_KEY',
   'E2B_API_KEY',
   'GITLAB_TOKEN',
   'GITLAB_PROJECT_ID',
@@ -154,7 +154,7 @@ export function loadConfig(
   }
 
   return {
-    anthropicApiKey: env.ANTHROPIC_API_KEY!,
+    zhipuApiKey: env.ZHIPU_API_KEY!,
     e2bApiKey: env.E2B_API_KEY!,
     gitlabToken: env.GITLAB_TOKEN!,
     gitlabProjectId: env.GITLAB_PROJECT_ID!,
@@ -374,7 +374,7 @@ describe('runDocGardening', () => {
 
     const result = await runDocGardening(
       {
-        anthropicApiKey: 'sk-ant-test',
+        zhipuApiKey: 'zhipu-test-key',
         e2bApiKey: 'e2b_test',
         gitlabToken: 'glpat-test',
         gitlabProjectId: '42',
@@ -417,7 +417,7 @@ describe('runDocGardening', () => {
 
     const result = await runDocGardening(
       {
-        anthropicApiKey: 'sk-ant-test',
+        zhipuApiKey: 'zhipu-test-key',
         e2bApiKey: 'e2b_test',
         gitlabToken: 'glpat-test',
         gitlabProjectId: '42',
@@ -448,7 +448,7 @@ describe('runDocGardening', () => {
     await expect(
       runDocGardening(
         {
-          anthropicApiKey: 'sk-ant-test',
+          zhipuApiKey: 'zhipu-test-key',
           e2bApiKey: 'e2b_test',
           gitlabToken: 'glpat-test',
           gitlabProjectId: '42',
@@ -519,7 +519,7 @@ export async function runDocGardening(
   const { createSandbox, createMR } = { ...defaultDeps(config), ...deps }
 
   const sandbox = await createSandbox('claude', {
-    envs: { ANTHROPIC_API_KEY: config.anthropicApiKey },
+    envs: { ZHIPU_API_KEY: config.zhipuApiKey },
     timeoutMs: config.sandboxTimeoutMs,
   })
 
@@ -728,7 +728,7 @@ Add the following at the end of `.env.example`:
 
 # ── Doc Gardening (CI only) ──────────────────────────────────────────────────
 # These variables are set as GitLab CI Variables, not needed locally.
-# ANTHROPIC_API_KEY=sk-ant-...
+# ZHIPU_API_KEY=your_zhipu_api_key
 # GITLAB_TOKEN=glpat-...
 # GITLAB_PROJECT_ID=42
 # GITLAB_URL=https://gitlab.example.com
