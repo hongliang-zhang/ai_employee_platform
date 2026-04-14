@@ -4,7 +4,10 @@ import jwt from 'jsonwebtoken'
 import { createPrismaClient } from '@aaas/db'
 import app from '../src/index.js'
 
-// These are integration tests — require postgres running via docker compose
+// These are integration tests — require DATABASE_URL to point at a reachable
+// PostgreSQL instance. In local development we use the Supabase-backed setup
+// documented in docs/LOCAL-DEV.md; the localhost fallback is only a last-resort
+// default for isolated environments.
 const SECRET = process.env.JWT_SECRET ?? 'test-secret-32-chars-minimum-len'
 const DB_URL = process.env.DATABASE_URL ?? 'postgres://aaas:aaas@localhost:5432/aaas'
 

@@ -43,43 +43,71 @@
 
 ---
 
-### Task 1: Stabilize the test environment
+### Task 1: Prerequisite checklist — verify the Supabase-backed test database
 
 **Files:**
-- Verify: `docker-compose.yml`
-- Verify: `scripts/setup.ts`
+- Verify: `.env.example`
+- Verify: `docs/LOCAL-DEV.md`
 - Verify: `packages/gateway/vitest.global-setup.ts`
+- Verify: `packages/db/.env` (symlink to repo root `.env`)
 
-- [ ] **Step 1: Start PostgreSQL**
+> This task is a **local prerequisite checklist**, not part of the gateway hardening change set. Do not create a dedicated commit for this task unless you intentionally decide to update repo docs/config for everyone.
+
+- [ ] **Step 1: Verify local `.env` without overwriting it**
+
+If `.env` already exists, do **not** overwrite it. Only create it when it is missing:
+
+```bash
+test -f .env || cp .env.example .env
+```
+
+For the gateway test flow, verify `.env` contains at minimum:
+- `DATABASE_URL` = Supabase pooler URL
+- `DIRECT_URL` = Supabase direct URL
+
+If you also plan to run the interactive setup script or the full local stack later, also verify:
+- `JWT_SECRET`
+- `BOT_TOKEN_ENC_KEY`
+- `E2B_TEMPLATE_ID`
+- `LLM_API_KEY`
+
+Expected: local `.env` remains intact when already configured, and missing setups can still be bootstrapped from `.env.example`.
+
+- [ ] **Step 2: Ensure Prisma can see the repo root `.env`**
 
 Run:
 ```bash
-docker compose up -d
+test -L packages/db/.env && [ "$(readlink packages/db/.env)" = "../../.env" ] || ln -sfn ../../.env packages/db/.env
 ```
-Expected: postgres container is healthy.
 
-- [ ] **Step 2: Apply migrations and seed**
+Expected: `packages/db/.env` is a symlink to `../../.env`.
+
+- [ ] **Step 3: Apply migrations against Supabase**
 
 Run:
 ```bash
-pnpm tsx scripts/setup.ts
+pnpm --filter @aaas/db migrate:deploy
 ```
-Expected: schema exists and seed completes.
 
-- [ ] **Step 3: Capture the current baseline**
+Expected: schema is applied successfully via `DIRECT_URL`.
+
+- [ ] **Step 4: Capture the current gateway baseline**
 
 Run:
 ```bash
 pnpm --filter @aaas/gateway test
 ```
-Expected: DB-backed tests actually execute; record current failures before changing code.
 
-- [ ] **Step 4: Commit environment-only fixes if needed**
+Expected: DB-backed tests actually execute against the configured Supabase database; record current failures before changing code.
 
+- [ ] **Step 5: Only if you need the full local app flow later, run the interactive setup script**
+
+Run:
 ```bash
-git add docker-compose.yml scripts/setup.ts packages/gateway/vitest.global-setup.ts
-git commit -m "chore: stabilize gateway test environment"
+pnpm tsx scripts/setup.ts
 ```
+
+Expected: the script prompts for a Telegram bot token on stdin, reruns migrations idempotently, and creates an `agent` / `im_config` pair. This step is **not required** for the gateway test suite itself.
 
 ---
 
@@ -265,7 +293,13 @@ git commit -m "fix: harden gateway auth claim validation"
 
 - [ ] **Step 1: Write a failing integration test for cross-conversation anchors**
 
+Before adding the new test, update the shared test fixtures so extra conversations created by this task are cleaned up. Extend `beforeEach()` / `afterAll()` in `packages/gateway/tests/messages.test.ts` to delete rows for both `CONV_ID` and `OTHER_CONV_ID`, and delete `OTHER_CONV_ID` in teardown so reruns stay idempotent.
+
+Then add the test:
+
 ```ts
+const OTHER_CONV_ID = 'conv_test02'
+
 it('rejects after_message_id from another conversation', async () => {
   await prisma.conversation.upsert({
     where: { id: OTHER_CONV_ID },
@@ -405,16 +439,28 @@ pnpm --filter @aaas/gateway test -- tests/messages.test.ts
 
 - [ ] **Step 4: Implement atomic append inside one transaction**
 
+Use an **interactive Prisma transaction** so the lock, head read, and inserts all share the same transaction/connection:
+
+```ts
+await db.$transaction(async (tx) => {
+  await tx.$executeRaw`SELECT 1 FROM conversations WHERE id = ${conversation_id} FOR UPDATE`
+
+  const head = await tx.message.findFirst({
+    where: { conversationId: conversation_id },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  })
+
+  // compare head to expected_last_message_id
+  // insert messages with tx.message.create(...)
+})
+```
+
 Implementation shape:
 1. Parse body with `parseAppendBody(req.body)`.
 2. Validate caller/source alignment on parsed messages.
-3. Open Prisma transaction.
-4. Lock the conversation row using raw SQL inside the transaction:
-
-```ts
-await tx.$executeRaw`SELECT 1 FROM conversations WHERE id = ${conversation_id} FOR UPDATE`
-```
-
+3. Open interactive Prisma transaction.
+4. Lock the conversation row with `FOR UPDATE`.
 5. Read current head inside the same transaction.
 6. Compare to `expected_last_message_id`.
 7. Insert messages inside the same transaction.

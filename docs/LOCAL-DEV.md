@@ -57,7 +57,7 @@ This pushes the schema to your Supabase instance via `DIRECT_URL`.
 ### 4. Seed the database
 
 ```bash
-pnpm --filter @aaas/scripts run setup
+pnpm tsx scripts/setup.ts
 ```
 
 This will:

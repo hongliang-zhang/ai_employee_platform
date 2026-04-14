@@ -19,7 +19,7 @@ z-mono/
   migrations/     # PostgreSQL schema (source of truth for DB structure)
   scripts/        # setup.ts: run migrations + seed DB
   docs/           # All design, architecture, and operational knowledge (see below)
-  docker-compose.yml  # Local postgres
+  .env.example    # Local env template (Supabase-backed local development)
 ```
 
 ## Where to find knowledge
@@ -36,6 +36,7 @@ z-mono/
 | Quality / coverage gaps | [docs/QUALITY_SCORE.md](./docs/QUALITY_SCORE.md) |
 | Security model | [docs/SECURITY.md](./docs/SECURITY.md) |
 | Reliability + error handling | [docs/RELIABILITY.md](./docs/RELIABILITY.md) |
+| Local development setup | [docs/LOCAL-DEV.md](./docs/LOCAL-DEV.md) |
 
 ## Key environment variables
 
@@ -51,18 +52,19 @@ See `.env.example` for full reference. Critical ones:
 ## Development workflow
 
 ```bash
-# Start local postgres
-docker compose up -d
+# Reuse existing local env if present; only initialize from template when missing
+test -f .env || cp .env.example .env
 
 # Run migrations + seed DB
+pnpm --filter @aaas/db migrate:deploy
 pnpm tsx scripts/setup.ts
 
 # Run all tests
 pnpm test
 
 # Run a single package's tests
-pnpm --filter gateway test
-pnpm --filter dispatcher test
+pnpm --filter @aaas/gateway test
+pnpm --filter @aaas/dispatcher test
 ```
 
 ## Agent operating principles
