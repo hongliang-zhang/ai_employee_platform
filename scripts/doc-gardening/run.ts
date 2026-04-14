@@ -35,7 +35,7 @@ function defaultDeps(config: DocGardeningConfig): RunDeps {
       Sandbox.create(template, { apiKey: config.e2bApiKey, ...opts }) as unknown as Promise<SandboxLike>,
     createMR: (cfg, branch) =>
       createMergeRequest(
-        { gitlabUrl: cfg.gitlabUrl, gitlabToken: cfg.gitlabToken, gitlabProjectId: cfg.gitlabProjectId },
+        { gitlabUrl: cfg.gitlabUrl, gitlabToken: cfg.gitlabToken, gitlabProjectId: cfg.gitlabProjectId, targetBranch: cfg.targetBranch },
         branch,
       ),
   }

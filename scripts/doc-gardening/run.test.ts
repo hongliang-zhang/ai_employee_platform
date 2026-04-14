@@ -8,6 +8,7 @@ const TEST_CONFIG = {
   gitlabProjectId: '42',
   gitlabUrl: 'https://gitlab.example.com',
   gitCloneUrl: 'https://x-token:glpat-test@gitlab.example.com/z-mono.git',
+  targetBranch: 'master',
   sandboxTimeoutMs: 30 * 60 * 1000,
   claudeTimeoutMs: 25 * 60 * 1000,
 } as const

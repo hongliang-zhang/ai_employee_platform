@@ -17,6 +17,7 @@ describe('createMergeRequest', () => {
         gitlabUrl: 'https://gitlab.example.com',
         gitlabToken: 'glpat-test',
         gitlabProjectId: '42',
+        targetBranch: 'master',
       },
       'doc-gardening/2026-04-14',
       mockFetch as unknown as typeof fetch,
@@ -29,7 +30,7 @@ describe('createMergeRequest', () => {
 
     const body = JSON.parse(options.body)
     expect(body.source_branch).toBe('doc-gardening/2026-04-14')
-    expect(body.target_branch).toBe('main')
+    expect(body.target_branch).toBe('master')
     expect(body.title).toContain('doc gardening')
     expect(body.labels).toBe('doc-gardening,automated')
     expect(body.remove_source_branch).toBe(true)
@@ -50,6 +51,7 @@ describe('createMergeRequest', () => {
           gitlabUrl: 'https://gitlab.example.com',
           gitlabToken: 'glpat-test',
           gitlabProjectId: '42',
+          targetBranch: 'master',
         },
         'doc-gardening/2026-04-14',
         mockFetch as unknown as typeof fetch,

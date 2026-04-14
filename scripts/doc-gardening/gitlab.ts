@@ -2,6 +2,7 @@ interface GitLabConfig {
   gitlabUrl: string
   gitlabToken: string
   gitlabProjectId: string
+  targetBranch: string
 }
 
 interface MergeRequestResult {
@@ -25,7 +26,7 @@ export async function createMergeRequest(
     },
     body: JSON.stringify({
       source_branch: branch,
-      target_branch: 'main',
+      target_branch: config.targetBranch,
       title: `docs: automated doc gardening ${date}`,
       description: [
         '## 🌱 Doc Gardening',
