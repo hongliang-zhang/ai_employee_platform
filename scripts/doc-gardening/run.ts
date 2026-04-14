@@ -7,7 +7,14 @@ const PROMPT_FILE = '.doc-gardening-prompt.md'
 
 export interface SandboxLike {
   commands: {
-    run: (cmd: string, opts?: { timeoutMs?: number }) => Promise<{ stdout: string; stderr: string; exitCode: number }>
+    run: (
+      cmd: string,
+      opts?: {
+        timeoutMs?: number
+        onStdout?: (data: string) => void
+        onStderr?: (data: string) => void
+      },
+    ) => Promise<{ stdout: string; stderr: string; exitCode: number }>
   }
   kill: () => Promise<void>
 }
@@ -65,15 +72,29 @@ export async function runDocGardening(
       `cd ${REPO_DIR} && git config user.email "doc-gardening@bot" && git config user.name "Doc Gardening Bot"`,
     )
 
-    // 3. Run Claude Code headless
-    await sandbox.commands.run(
+    // 3. Run Claude Code headless — stream output so we can see what it's doing
+    console.log('\n── Claude Code output ──────────────────────────────────────')
+    const claudeResult = await sandbox.commands.run(
       `cd ${REPO_DIR} && claude --dangerously-skip-permissions -p "$(cat ${PROMPT_FILE})"`,
-      { timeoutMs: config.claudeTimeoutMs },
+      {
+        timeoutMs: config.claudeTimeoutMs,
+        onStdout: (data) => process.stdout.write(data),
+        onStderr: (data) => process.stderr.write(data),
+      },
     )
+    console.log('────────────────────────────────────────────────────────────\n')
+    if (claudeResult.exitCode !== 0) {
+      throw new Error(`Claude Code exited with code ${claudeResult.exitCode}`)
+    }
 
     // 4. Check for changes
     const diff = await sandbox.commands.run(`cd ${REPO_DIR} && git diff`)
     const hasChanges = diff.stdout.trim().length > 0
+
+    console.log(hasChanges
+      ? `── git diff ────────────────────────────────────────────────\n${diff.stdout}\n────────────────────────────────────────────────────────────`
+      : 'git diff: no changes'
+    )
 
     if (!hasChanges) {
       console.log('No documentation changes detected. Skipping MR creation.')
