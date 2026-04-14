@@ -1,16 +1,9 @@
-import datetime
-from pathlib import Path
 from flask import Flask, request, jsonify
 from gateway_client import GatewayClient
 
 SYSTEM_PROMPT = "You are a helpful assistant."
 
 app = Flask(__name__)
-
-# Write a startup timestamp to /persistent to verify file sync works
-_startup_marker = Path('/persistent/shared/startup.txt')
-_startup_marker.parent.mkdir(parents=True, exist_ok=True)
-_startup_marker.write_text(f"started at {datetime.datetime.utcnow().isoformat()}Z\n")
 
 @app.get("/health")
 def health():
