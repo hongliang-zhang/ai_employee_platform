@@ -16,7 +16,7 @@ z-mono/
     gateway/      # Trusted service: message history + LLM proxy (Node.js/Express)
     dispatcher/   # Telegram polling + sandbox lifecycle management (Node.js)
     demo-agent/   # Reference agent runtime packaged as e2b template (Python/Flask)
-  migrations/     # PostgreSQL schema (source of truth for DB structure)
+    db/           # Database package with Prisma schema and migrations
   scripts/        # setup.ts + doc-gardening automation
   docs/           # All design, architecture, and operational knowledge (see below)
   .env.example    # Local env template (Supabase-backed local development)
