@@ -54,8 +54,9 @@ export async function runDocGardening(
   try {
 
     // 1. Clone repo
+    const cloneBranchFlag = config.gitCloneBranch ? `--branch ${config.gitCloneBranch} ` : ''
     await sandbox.commands.run(
-      `git clone ${config.gitCloneUrl} ${REPO_DIR}`,
+      `git clone ${cloneBranchFlag}${config.gitCloneUrl} ${REPO_DIR}`,
       { timeoutMs: 120_000 },
     )
 

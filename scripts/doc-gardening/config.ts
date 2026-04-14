@@ -5,6 +5,7 @@ export interface DocGardeningConfig {
   gitlabProjectId: string
   gitlabUrl: string
   gitCloneUrl: string
+  gitCloneBranch?: string
   sandboxTimeoutMs: number
   claudeTimeoutMs: number
 }
@@ -32,6 +33,7 @@ export function loadConfig(
     gitlabProjectId: env.GITLAB_PROJECT_ID!,
     gitlabUrl: env.GITLAB_URL || 'https://gitlab.com',
     gitCloneUrl: env.GIT_CLONE_URL!,
+    gitCloneBranch: env.GIT_CLONE_BRANCH,
     sandboxTimeoutMs: Number(env.SANDBOX_TIMEOUT_MS) || 30 * 60 * 1000,
     claudeTimeoutMs: Number(env.CLAUDE_TIMEOUT_MS) || 25 * 60 * 1000,
   }
