@@ -8,7 +8,7 @@
  * Exit 1 on any mismatch — suitable for CI.
  */
 import { readdirSync, readFileSync, existsSync } from 'fs'
-import { join, dirname } from 'path'
+import { join } from 'path'
 
 const DOCS_DIR = 'docs'
 
