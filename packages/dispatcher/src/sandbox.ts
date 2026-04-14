@@ -65,8 +65,30 @@ export function createSandboxOrchestrator(config: {
       const createMs = Date.now() - createStart
       logger.info({ event: 'sandbox.created', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, duration_ms: createMs })
 
-      // Start Flask app with env vars via nohup — e2b start command does not receive envs
-      const startCmd = `nohup bash -c 'GATEWAY_URL=${config.gatewayUrl} SESSION_TOKEN=${sessionToken} SESSION_ID=${conversationId} python /app/app.py' > /tmp/flask.log 2>&1 &`
+      const envPrefix = `GATEWAY_URL=${config.gatewayUrl} SESSION_TOKEN=${sessionToken} SESSION_ID=${conversationId}`
+
+      // File sync: download existing persistent files from S3
+      const syncInitStart = Date.now()
+      const syncInitResult = await sandbox.commands.run(
+        `${envPrefix} python /app/file_sync.py init`,
+        { timeoutMs: 60000 }
+      )
+      if (syncInitResult.exitCode !== 0) {
+        logger.error({ event: 'sandbox.file_sync_init_failed', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, stderr: syncInitResult.stderr })
+        await sandbox.kill().catch(() => {})
+        throw new Error('file sync init failed')
+      }
+      logger.info({ event: 'sandbox.file_sync_init', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, duration_ms: Date.now() - syncInitStart })
+
+      // File sync: start background watcher
+      await sandbox.commands.run(
+        `nohup bash -c '${envPrefix} python /app/file_sync.py watch' > /tmp/file_sync.log 2>&1 &`,
+        { timeoutMs: 5000 }
+      )
+      logger.info({ event: 'sandbox.file_sync_watch_started', conversation_id: conversationId, sandbox_id: sandbox.sandboxId })
+
+      // Start Flask app
+      const startCmd = `nohup bash -c '${envPrefix} python /app/app.py' > /tmp/flask.log 2>&1 &`
       const flaskStart = Date.now()
       await sandbox.commands.run(startCmd, { timeoutMs: 10000 })
       logger.info({ event: 'sandbox.flask_started', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, duration_ms: Date.now() - flaskStart })
