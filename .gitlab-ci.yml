@@ -61,3 +61,14 @@ test:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Doc Gardening: weekly automated doc audit via Claude Code in e2b sandbox
+# Triggered by scheduled pipeline with DOC_GARDENING=true variable
+doc-gardening:
+  extends: .pnpm_setup
+  stage: validate
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $DOC_GARDENING == "true"
+  script:
+    - pnpm tsx scripts/doc-gardening/run.ts
+  timeout: 35m
