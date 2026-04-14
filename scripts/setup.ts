@@ -3,8 +3,6 @@ import { createInterface } from 'readline'
 import { createId } from '@paralleldrive/cuid2'
 import { createCipheriv, randomBytes } from 'crypto'
 import { createPrismaClient } from '@aaas/db'
-import { resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
 
 const DATABASE_URL = process.env.DATABASE_URL!
 const BOT_TOKEN_ENC_KEY = process.env.BOT_TOKEN_ENC_KEY!
@@ -17,12 +15,7 @@ if (!DATABASE_URL || !BOT_TOKEN_ENC_KEY || !E2B_TEMPLATE_ID) {
 
 // Run Prisma migrations
 console.log('Running migrations...')
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const schemaPath = resolve(__dirname, '../packages/db/prisma/schema.prisma')
-execSync(`pnpm --filter @aaas/db exec prisma migrate deploy --schema=${schemaPath}`, {
-  stdio: 'inherit',
-  env: { ...process.env, DATABASE_URL },
-})
+execSync(`pnpm --filter @aaas/db migrate:deploy`, { stdio: 'inherit' })
 console.log('Migrations complete.')
 
 // Read bot token from stdin
