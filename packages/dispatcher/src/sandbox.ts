@@ -69,16 +69,23 @@ export function createSandboxOrchestrator(config: {
 
       // File sync: download existing persistent files from S3
       const syncInitStart = Date.now()
-      const syncInitResult = await sandbox.commands.run(
-        `${envPrefix} python /app/file_sync.py init`,
-        { timeoutMs: 60000 }
-      )
-      if (syncInitResult.exitCode !== 0) {
-        logger.error({ event: 'sandbox.file_sync_init_failed', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, stderr: syncInitResult.stderr })
+      let syncInitStdout = ''
+      let syncInitStderr = ''
+      try {
+        await sandbox.commands.run(
+          `${envPrefix} python /app/file_sync.py init 2>&1`,
+          {
+            timeoutMs: 60000,
+            onStdout: (data) => { syncInitStdout += data },
+            onStderr: (data) => { syncInitStderr += data },
+          }
+        )
+        logger.info({ event: 'sandbox.file_sync_init', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, duration_ms: Date.now() - syncInitStart, stdout: syncInitStdout })
+      } catch (err) {
+        logger.error({ event: 'sandbox.file_sync_init_failed', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, error: String(err), stdout: syncInitStdout, stderr: syncInitStderr })
         await sandbox.kill().catch(() => {})
-        throw new Error('file sync init failed')
+        throw new Error(`file sync init failed: ${syncInitStdout || syncInitStderr}`)
       }
-      logger.info({ event: 'sandbox.file_sync_init', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, duration_ms: Date.now() - syncInitStart })
 
       // File sync: start background watcher
       await sandbox.commands.run(
