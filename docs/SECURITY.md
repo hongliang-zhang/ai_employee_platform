@@ -17,6 +17,7 @@ Untrusted zone: e2b sandboxes (run third-party agent code)
 | `LLM_API_KEY` | gateway env | Never reaches sandbox |
 | `E2B_API_KEY` | dispatcher env | Never reaches sandbox |
 | `SESSION_TOKEN` (scoped JWT) | generated per-conversation | Passed to sandbox at start via env var |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | gateway env | Never reaches sandbox (presigned URLs used instead) |
 
 Sandboxes authenticate to gateway using a scoped JWT (`caller: 'sandbox'`, 24h TTL) that encodes only `conversation_id` and `agent_id`. They can only read/write their own conversation.
 
