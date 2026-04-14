@@ -40,12 +40,19 @@ export async function runDocGardening(
 ): Promise<RunResult> {
   const { createSandbox, createMR } = { ...defaultDeps(config), ...deps }
 
+  // Pass Zhipu credentials as env vars — Claude Code picks these up automatically
   const sandbox = await createSandbox('claude', {
-    envs: { ANTHROPIC_API_KEY: config.anthropicApiKey },
+    envs: {
+      ANTHROPIC_AUTH_TOKEN: config.zhipuApiKey,
+      ANTHROPIC_BASE_URL: 'https://open.bigmodel.cn/api/anthropic',
+      API_TIMEOUT_MS: '3000000',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    },
     timeoutMs: config.sandboxTimeoutMs,
   })
 
   try {
+
     // 1. Clone repo
     await sandbox.commands.run(
       `git clone ${config.gitCloneUrl} ${REPO_DIR}`,

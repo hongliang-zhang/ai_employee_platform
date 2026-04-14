@@ -1,5 +1,5 @@
 export interface DocGardeningConfig {
-  anthropicApiKey: string
+  zhipuApiKey: string
   e2bApiKey: string
   gitlabToken: string
   gitlabProjectId: string
@@ -10,7 +10,7 @@ export interface DocGardeningConfig {
 }
 
 const REQUIRED_VARS = [
-  'ANTHROPIC_API_KEY',
+  'ZHIPU_API_KEY',
   'E2B_API_KEY',
   'GITLAB_TOKEN',
   'GITLAB_PROJECT_ID',
@@ -26,7 +26,7 @@ export function loadConfig(
   }
 
   return {
-    anthropicApiKey: env.ANTHROPIC_API_KEY!,
+    zhipuApiKey: env.ZHIPU_API_KEY!,
     e2bApiKey: env.E2B_API_KEY!,
     gitlabToken: env.GITLAB_TOKEN!,
     gitlabProjectId: env.GITLAB_PROJECT_ID!,
