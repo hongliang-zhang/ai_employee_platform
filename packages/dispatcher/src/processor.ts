@@ -27,6 +27,7 @@ export function createProcessor(deps: {
   return {
     async handle(msg: NormalizedMessage): Promise<void> {
       const traceId = 'tr_' + createId()
+      const handleStart = Date.now()
       logger.info({ event: 'message.received', trace_id: traceId, channel_key: msg.channel_key, external_message_id: msg.external_message_id })
 
       // Upsert conversation — must happen before inbound_jobs insert (FK constraint)
@@ -74,9 +75,11 @@ export function createProcessor(deps: {
       // Dispatch to sandbox — on 5xx, destroy stale entry so the next attempt recreates it
       const sandboxToken = jwt.signSandboxToken(conversationId, agent.id)
       let reply: string
+      const dispatchStart = Date.now()
       try {
         reply = await retryWithBackoff(async () => {
           const entry = await sandbox.getOrCreate(conversationId, agent.e2bTemplateId, agent.port, sandboxToken, agent.idleTimeoutMs)
+          const chatStart = Date.now()
           const res = await fetch(`${entry.chatUrl}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Trace-Id': traceId },
@@ -90,6 +93,7 @@ export function createProcessor(deps: {
             }
             throw new Error(`sandbox returned ${res.status}`)
           }
+          logger.info({ event: 'sandbox.chat', trace_id: traceId, conversation_id: conversationId, duration_ms: Date.now() - chatStart })
           return ((await res.json()) as any).reply as string
         }, 2)
       } catch (err) {
@@ -98,7 +102,7 @@ export function createProcessor(deps: {
       }
 
       await telegram.sendMessage(msg.external_chat_id, reply)
-      logger.info({ event: 'reply.delivered', trace_id: traceId, conversation_id: conversationId })
+      logger.info({ event: 'reply.delivered', trace_id: traceId, conversation_id: conversationId, dispatch_ms: Date.now() - dispatchStart, total_ms: Date.now() - handleStart })
       await jobs.markDone(msg.channel_key, msg.external_message_id)
 
       // Sync cache: sandbox appended an assistant message; update lastMessageId so the next

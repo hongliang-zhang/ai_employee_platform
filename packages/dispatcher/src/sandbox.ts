@@ -1,5 +1,8 @@
 import { Sandbox } from '@e2b/code-interpreter'
+import pino from 'pino'
 import { retryWithBackoff } from './utils.js'
+
+const logger = pino({ transport: { target: 'pino-pretty' } })
 
 interface SandboxEntry {
   sandboxId: string
@@ -55,20 +58,27 @@ export function createSandboxOrchestrator(config: {
       }
 
       // e2b API can have transient failures — retry up to 3 times
+      const createStart = Date.now()
       const sandbox = await retryWithBackoff(() =>
         Sandbox.create(templateId, { apiKey: config.e2bApiKey })
       )
+      const createMs = Date.now() - createStart
+      logger.info({ event: 'sandbox.created', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, duration_ms: createMs })
 
       // Start Flask app with env vars via nohup — e2b start command does not receive envs
       const startCmd = `nohup bash -c 'GATEWAY_URL=${config.gatewayUrl} SESSION_TOKEN=${sessionToken} SESSION_ID=${conversationId} python /app/app.py' > /tmp/flask.log 2>&1 &`
+      const flaskStart = Date.now()
       await sandbox.commands.run(startCmd, { timeoutMs: 10000 })
+      logger.info({ event: 'sandbox.flask_started', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, duration_ms: Date.now() - flaskStart })
 
       const chatUrl = `https://8080-${sandbox.sandboxId}.${sandbox.sandboxDomain}`
+      const healthStart = Date.now()
       const ready = await pollHealth(chatUrl)
       if (!ready) {
         await sandbox.kill().catch(() => {})
         throw new Error('sandbox health check timed out')
       }
+      logger.info({ event: 'sandbox.ready', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, health_ms: Date.now() - healthStart, total_ms: Date.now() - createStart })
 
       const entry: SandboxEntry = { sandboxId: sandbox.sandboxId, instance: sandbox, chatUrl }
       sandboxMap.set(conversationId, entry)
