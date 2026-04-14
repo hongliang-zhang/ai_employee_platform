@@ -35,6 +35,8 @@ Telegram
 - `POST /gateway/messages/load` — load conversation history for a conversation
 - `POST /gateway/messages/append` — append messages (with optimistic concurrency via `expected_last_message_id`)
 - `POST /gateway/llm` — proxy to upstream LLM API (currently glm-5.1 at z.ai)
+- `POST /gateway/storage/presign` — generate presigned S3 URLs for file upload/download (scoped to agent/conversation)
+- `POST /gateway/storage/list` — list files under agent's shared or conversation prefix
 - `GET /health`
 
 **Why gateway owns everything:** Sandboxes run in the cloud (e2b) and are untrusted. All storage and LLM keys must remain in the trusted zone. Gateway is the single chokepoint that enforces auth and scoping.
@@ -87,6 +89,12 @@ All gateway requests require a JWT signed with `JWT_SECRET`.
 | sandbox | `sandbox` | 24h | `sandbox` only |
 
 **Why two caller types:** Prevents a compromised sandbox from injecting `im`-sourced messages and impersonating users. The `source` field on messages is enforced server-side against the `caller` claim — the sandbox cannot forge user messages.
+
+## Persistent file storage
+
+Sandbox agents can read and write files in `/persistent/` inside the sandbox. A background daemon (`file_sync.py`) syncs these files to S3-compatible storage via presigned URLs issued by gateway. The sandbox never holds S3 credentials.
+
+Storage layout: `agents/{agent_id}/shared/` (cross-conversation) and `agents/{agent_id}/conversations/{conv_id}/` (conversation-scoped). See `docs/product-specs/sandbox-persistent-storage.md` for full design.
 
 ## Optimistic concurrency on message history
 

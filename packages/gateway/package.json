@@ -10,12 +10,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aaas/db": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1030.0",
+    "@aws-sdk/s3-request-presigner": "^3.1030.0",
     "@paralleldrive/cuid2": "^3.3.0",
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
     "pino": "^9.4.0",
-    "pino-pretty": "^11.2.2",
-    "@aaas/db": "workspace:*"
+    "pino-pretty": "^11.2.2"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

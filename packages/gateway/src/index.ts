@@ -4,6 +4,8 @@ import { createDb } from './db.js'
 import { createAuthMiddleware } from './auth.js'
 import { createMessagesRouter } from './routes/messages.js'
 import { createLlmRouter } from './routes/llm.js'
+import { createS3Service } from './s3.js'
+import { createStorageRouter } from './routes/storage.js'
 
 export const logger = pino({ transport: process.env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined })
 
@@ -11,6 +13,11 @@ const PORT = parseInt(process.env.PORT ?? '3001')
 const DATABASE_URL = process.env.DATABASE_URL!
 const JWT_SECRET = process.env.JWT_SECRET!
 const LLM_API_KEY = process.env.LLM_API_KEY!
+const S3_ENDPOINT = process.env.S3_ENDPOINT
+const S3_BUCKET = process.env.S3_BUCKET
+const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY
+const S3_SECRET_KEY = process.env.S3_SECRET_KEY
+const S3_REGION = process.env.S3_REGION ?? 'us-east-1'
 
 export const db = createDb(DATABASE_URL)
 export const auth = createAuthMiddleware(JWT_SECRET)
@@ -22,6 +29,17 @@ app.get('/health', (_req, res) => { res.json({ ok: true }) })
 
 app.use('/gateway/messages', auth, createMessagesRouter(db))
 app.use('/gateway/llm', auth, createLlmRouter(LLM_API_KEY))
+
+if (S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY && S3_SECRET_KEY) {
+  const s3 = createS3Service({
+    endpoint: S3_ENDPOINT,
+    bucket: S3_BUCKET,
+    accessKey: S3_ACCESS_KEY,
+    secretKey: S3_SECRET_KEY,
+    region: S3_REGION,
+  })
+  app.use('/gateway/storage', auth, createStorageRouter(s3))
+}
 
 // Only start server when run directly (not imported by tests)
 if (process.env.VITEST === undefined) {
