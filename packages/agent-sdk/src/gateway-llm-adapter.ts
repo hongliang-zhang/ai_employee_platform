@@ -78,7 +78,7 @@ export function createGatewayLlmProvider(
       yield { type: 'text_delta' as const, contentIndex: 0, delta: text, partial }
       yield { type: 'text_end' as const, contentIndex: 0, content: text, partial }
       yield { type: 'done' as const, reason: 'stop' as const, message: partial }
-    })() as AssistantMessageEventStream
+    })() as unknown as AssistantMessageEventStream
   }
 
   return {
