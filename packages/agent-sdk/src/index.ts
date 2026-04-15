@@ -3,3 +3,4 @@ export type { Environment, LocalConfig, ResolvedConfig, SandboxConfig } from './
 export { GatewayClient } from './gateway-client.js'
 export type { GatewayMessage, PresignOperation, PresignedUrl, RemoteFile } from './gateway-client.js'
 export { createGatewayLlmProvider } from './gateway-llm-adapter.js'
+export { FileSync } from './file-sync.js'
