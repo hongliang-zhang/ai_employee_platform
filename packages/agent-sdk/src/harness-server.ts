@@ -1,6 +1,8 @@
 import {
+  AuthStorage,
   createAgentSession,
   type CreateAgentSessionOptions,
+  ModelRegistry,
   SessionManager,
   type ToolDefinition,
 } from '@mariozechner/pi-coding-agent'
@@ -51,8 +53,12 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
     ? SessionManager.continueRecent(process.cwd(), sessionDir)
     : SessionManager.inMemory()
 
-  // In sandbox mode, construct a Model pointing to gateway-llm provider
+  // In sandbox mode, construct a Model pointing to gateway-llm provider and a
+  // ModelRegistry that knows the 'gateway' provider's API key (= sessionToken).
+  // pi-coding-agent calls getApiKey(model.provider) before each LLM request;
+  // without a registered key it throws "No API key found for gateway".
   let gatewayModel: Model<any> | undefined
+  let modelRegistry: ModelRegistry | undefined
   if (config.mode === 'sandbox') {
     const sandboxConfig = config as SandboxConfig
     gatewayModel = {
@@ -67,12 +73,15 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
       contextWindow: 128000,
       maxTokens: 4096,
     }
+    modelRegistry = new ModelRegistry(AuthStorage.inMemory(), undefined)
+    modelRegistry.registerProvider('gateway', { apiKey: sandboxConfig.sessionToken })
   }
 
   const sessionOptions: CreateAgentSessionOptions = {
     sessionManager,
     customTools: tools,
     ...(gatewayModel && { model: gatewayModel }),
+    ...(modelRegistry && { modelRegistry }),
   }
 
   const { session } = await createAgentSession(sessionOptions)
