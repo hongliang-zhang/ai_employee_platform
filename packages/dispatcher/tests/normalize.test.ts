@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeTelegramUpdate } from '../src/normalize.js'
+import { normalizeTelegramUpdate, normalizeFeishuEvent } from '../src/normalize.js'
 
 describe('normalizeTelegramUpdate', () => {
   it('normalizes a private message', () => {
@@ -36,5 +36,113 @@ describe('normalizeTelegramUpdate', () => {
   it('returns null for updates without message', () => {
     const result = normalizeTelegramUpdate({ update_id: 1, edited_message: {} }, 'im:cfg_abc')
     expect(result).toBeNull()
+  })
+})
+
+// --- Feishu tests ---
+
+function makeFeishuEvent(overrides: {
+  chatType?: string
+  messageType?: string
+  content?: string
+  mentions?: Array<{ key: string; id?: { open_id?: string }; name?: string }>
+  senderOpenId?: string | null
+} = {}) {
+  return {
+    message: {
+      message_id: 'om_msg_001',
+      chat_id: 'oc_chat_abc',
+      chat_type: overrides.chatType ?? 'p2p',
+      message_type: overrides.messageType ?? 'text',
+      content: overrides.content ?? JSON.stringify({ text: 'hello' }),
+      mentions: overrides.mentions ?? [],
+    },
+    sender: {
+      sender_id: overrides.senderOpenId === null
+        ? {}
+        : { open_id: overrides.senderOpenId ?? 'ou_sender_001' },
+    },
+  }
+}
+
+const BOT_OPEN_ID = 'ou_bot_xyz'
+const CHANNEL_KEY = 'im:cfg_feishu'
+
+describe('normalizeFeishuEvent', () => {
+  it('normalizes a DM text message', () => {
+    const result = normalizeFeishuEvent(makeFeishuEvent(), CHANNEL_KEY, BOT_OPEN_ID)
+    expect(result).toEqual({
+      channel_key: CHANNEL_KEY,
+      external_chat_id: 'oc_chat_abc',
+      external_thread_key: '',
+      external_message_id: 'om_msg_001',
+      author: { external_user_id: 'ou_sender_001', display_name: null },
+      content: { type: 'text', text: 'hello' },
+    })
+  })
+
+  it('strips bot mention placeholder from group message text', () => {
+    const result = normalizeFeishuEvent(
+      makeFeishuEvent({
+        chatType: 'group',
+        content: JSON.stringify({ text: '@_bot_1 what is 2+2?' }),
+        mentions: [{ key: '@_bot_1', id: { open_id: BOT_OPEN_ID }, name: 'Bot' }],
+      }),
+      CHANNEL_KEY,
+      BOT_OPEN_ID
+    )
+    expect(result).not.toBeNull()
+    expect(result!.content.text).toBe('what is 2+2?')
+  })
+
+  it('returns null for group message without @bot mention', () => {
+    const result = normalizeFeishuEvent(
+      makeFeishuEvent({
+        chatType: 'group',
+        content: JSON.stringify({ text: 'just chatting' }),
+        mentions: [],
+      }),
+      CHANNEL_KEY,
+      BOT_OPEN_ID
+    )
+    expect(result).toBeNull()
+  })
+
+  it('returns null for non-text message type', () => {
+    const result = normalizeFeishuEvent(
+      makeFeishuEvent({ messageType: 'image' }),
+      CHANNEL_KEY,
+      BOT_OPEN_ID
+    )
+    expect(result).toBeNull()
+  })
+
+  it('returns null when sender open_id is missing', () => {
+    const result = normalizeFeishuEvent(
+      makeFeishuEvent({ senderOpenId: null }),
+      CHANNEL_KEY,
+      BOT_OPEN_ID
+    )
+    expect(result).toBeNull()
+  })
+
+  it('treats chat_type "private" as group — requires @bot mention', () => {
+    const withoutMention = normalizeFeishuEvent(
+      makeFeishuEvent({ chatType: 'private', mentions: [] }),
+      CHANNEL_KEY,
+      BOT_OPEN_ID
+    )
+    expect(withoutMention).toBeNull()
+
+    const withMention = normalizeFeishuEvent(
+      makeFeishuEvent({
+        chatType: 'private',
+        content: JSON.stringify({ text: '@_bot_1 hello' }),
+        mentions: [{ key: '@_bot_1', id: { open_id: BOT_OPEN_ID }, name: 'Bot' }],
+      }),
+      CHANNEL_KEY,
+      BOT_OPEN_ID
+    )
+    expect(withMention).not.toBeNull()
   })
 })

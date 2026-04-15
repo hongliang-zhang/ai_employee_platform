@@ -33,8 +33,8 @@ model Agent {
 model ImConfig {
   id             String    @id
   agentId        String    @map("agent_id")
-  platform       String    @default("telegram")
-  botTokenEnc    String    @map("bot_token_enc")
+  provider       String    @default("telegram")
+  credentialsEnc String    @map("credentials_enc")
   chatScope      String    @default("all") @map("chat_scope")
   status         String
   leaseOwner     String?   @map("lease_owner")

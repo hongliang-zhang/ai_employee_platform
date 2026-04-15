@@ -1,8 +1,8 @@
 import { execSync } from 'child_process'
 import { createInterface } from 'readline'
 import { createId } from '@paralleldrive/cuid2'
-import { createCipheriv, randomBytes } from 'crypto'
 import { createPrismaClient } from '@aaas/db'
+import { createEncryptor } from '../packages/dispatcher/src/encrypt.js'
 
 const DATABASE_URL = process.env.DATABASE_URL!
 const BOT_TOKEN_ENC_KEY = process.env.BOT_TOKEN_ENC_KEY!
@@ -13,32 +13,40 @@ if (!DATABASE_URL || !BOT_TOKEN_ENC_KEY || !E2B_TEMPLATE_ID) {
   process.exit(1)
 }
 
+const enc = createEncryptor(BOT_TOKEN_ENC_KEY)
+
 // Run Prisma migrations
 console.log('Running migrations...')
 execSync(`pnpm --filter @aaas/db migrate:deploy`, { stdio: 'inherit' })
 console.log('Migrations complete.')
 
-// Read bot token from stdin
 const rl = createInterface({ input: process.stdin, output: process.stderr })
-const botToken: string = await new Promise(resolve => {
-  rl.question('Enter Telegram bot token: ', answer => {
-    rl.close()
-    resolve(answer.trim())
-  })
-})
+const ask = (q: string): Promise<string> =>
+  new Promise(resolve => rl.question(q, answer => resolve(answer.trim())))
 
-function encrypt(plaintext: string, hexKey: string): string {
-  const key = Buffer.from(hexKey, 'hex')
-  const iv = randomBytes(12)
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
-  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
-  const tag = cipher.getAuthTag()
-  return [iv, tag, encrypted].map(b => b.toString('base64')).join(':')
+// Select provider
+const provider = await ask('Provider [telegram/feishu]: ')
+if (provider !== 'telegram' && provider !== 'feishu') {
+  console.error(`Unknown provider: ${provider}`)
+  process.exit(1)
 }
 
-const botTokenEnc = encrypt(botToken, BOT_TOKEN_ENC_KEY)
+let credentials: Record<string, string>
 
-// Seed agent and im_config
+if (provider === 'telegram') {
+  const botToken = await ask('Enter Telegram bot token: ')
+  credentials = { bot_token: botToken }
+
+} else {
+  const appId = await ask('Enter Feishu App ID (cli_xxx): ')
+  const appSecret = await ask('Enter Feishu App Secret: ')
+  credentials = { app_id: appId, app_secret: appSecret }
+}
+
+rl.close()
+
+const credentialsEnc = enc.encrypt(JSON.stringify(credentials))
+
 const prisma = createPrismaClient(DATABASE_URL)
 const agentId = 'agt_' + createId()
 const cfgId = 'cfg_' + createId()
@@ -48,13 +56,14 @@ await prisma.agent.create({
 })
 
 await prisma.imConfig.create({
-  data: { id: cfgId, agentId, platform: 'telegram', botTokenEnc, chatScope: 'all', status: 'active' },
+  data: { id: cfgId, agentId, provider, credentialsEnc, chatScope: 'all', status: 'active' },
 })
 
 await prisma.$disconnect()
 
 console.log(`\nSetup complete.`)
-console.log(`  agent_id:   ${agentId}`)
-console.log(`  im_config:  ${cfgId}`)
+console.log(`  provider:    ${provider}`)
+console.log(`  agent_id:    ${agentId}`)
+console.log(`  im_config:   ${cfgId}`)
 console.log(`  channel_key: im:${cfgId}`)
 console.log('\nStart dispatcher and gateway to go live.')

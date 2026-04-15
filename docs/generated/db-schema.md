@@ -42,8 +42,8 @@ IM channel configuration per agent. One agent may have multiple IM configs (e.g.
 |--------|------|-------------|-------|
 | `id` | TEXT | PRIMARY KEY | cuid2 |
 | `agent_id` | TEXT | NOT NULL REFERENCES agents(id) | |
-| `platform` | TEXT | NOT NULL DEFAULT 'telegram' | Always 'telegram' in MVP |
-| `bot_token_enc` | TEXT | NOT NULL | Bot token encrypted with `BOT_TOKEN_ENC_KEY` (AES-256) |
+| `provider` | TEXT | NOT NULL DEFAULT 'telegram' CHECK IN ('telegram', 'feishu') | IM provider type |
+| `credentials_enc` | TEXT | NOT NULL | Provider credentials as encrypted JSON (AES-256). Telegram: `{bot_token}`. Feishu: `{app_id, app_secret}` |
 | `chat_scope` | TEXT | NOT NULL DEFAULT 'all' | Which chats to respond to |
 | `status` | TEXT | CHECK IN ('active','paused','disabled') | |
 | `lease_owner` | TEXT | | Reserved for multi-dispatcher lease (unused in MVP) |

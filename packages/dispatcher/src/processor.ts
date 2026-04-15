@@ -1,4 +1,5 @@
 import type { NormalizedMessage } from './normalize.js'
+import type { IMClient } from './im-client.js'
 import pino from 'pino'
 import { createId } from '@paralleldrive/cuid2'
 import { retryWithBackoff } from './utils.js'
@@ -17,11 +18,11 @@ export function createProcessor(deps: {
   jobs: ReturnType<typeof import('./inbound-jobs.js').createInboundJobsManager>
   gateway: ReturnType<typeof import('./gateway-client.js').createGatewayClient>
   sandbox: ReturnType<typeof import('./sandbox.js').createSandboxOrchestrator>
-  telegram: ReturnType<typeof import('./telegram.js').createTelegramClient>
+  im: IMClient
   jwt: ReturnType<typeof import('./jwt.js').createJwtSigner>
   agent: Agent
 }) {
-  const { conversation, jobs, gateway, sandbox, telegram, jwt, agent } = deps
+  const { conversation, jobs, gateway, sandbox, im, jwt, agent } = deps
   const UNAVAILABLE_MSG = '服务暂时不可用，请稍后重试'
 
   return {
@@ -49,7 +50,7 @@ export function createProcessor(deps: {
       const fail = async (event: string, err: unknown) => {
         logger.error({ event, trace_id: traceId, conversation_id: conversationId, error: String(err) })
         await jobs.markFailed(msg.channel_key, msg.external_message_id)
-        await telegram.sendMessage(msg.external_chat_id, UNAVAILABLE_MSG)
+        await im.sendMessage(msg.external_chat_id, UNAVAILABLE_MSG)
       }
 
       // Append user message to conversation history
@@ -70,7 +71,7 @@ export function createProcessor(deps: {
       }
 
       await jobs.markProcessing(msg.channel_key, msg.external_message_id)
-      await telegram.sendChatAction(msg.external_chat_id)
+      await im.sendChatAction(msg.external_chat_id)
 
       // Dispatch to sandbox — on 5xx, destroy stale entry so the next attempt recreates it
       const sandboxToken = jwt.signSandboxToken(conversationId, agent.id)
@@ -101,7 +102,7 @@ export function createProcessor(deps: {
         return
       }
 
-      await telegram.sendMessage(msg.external_chat_id, reply)
+      await im.sendMessage(msg.external_chat_id, reply)
       logger.info({ event: 'reply.delivered', trace_id: traceId, conversation_id: conversationId, dispatch_ms: Date.now() - dispatchStart, total_ms: Date.now() - handleStart })
       await jobs.markDone(msg.channel_key, msg.external_message_id)
 

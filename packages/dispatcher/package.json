@@ -15,7 +15,8 @@
     "pino": "^9.4.0",
     "pino-pretty": "^11.2.2",
     "@paralleldrive/cuid2": "^2.2.2",
-    "@e2b/code-interpreter": "^1.0.0"
+    "@e2b/code-interpreter": "^1.0.0",
+    "@larksuiteoapi/node-sdk": "^1.60.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
