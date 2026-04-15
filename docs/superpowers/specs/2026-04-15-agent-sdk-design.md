@@ -192,6 +192,18 @@ Pi session files are the agent's working memory source of truth. Gateway `messag
 
 **Message audit:** After each agent reply, SDK fire-and-forget calls `gateway.appendMessages()` to persist the record for platform observability.
 
+### Optimistic concurrency with dispatcher
+
+Currently the dispatcher calls `gateway.appendMessages()` for user messages and maintains a `lastMessageId` cache. After sandbox replies, it fire-and-forgets a `loadMessages()` to sync the cache. With the SDK also calling `appendMessages` for assistant messages, sequencing matters.
+
+The existing flow already handles this correctly:
+1. Dispatcher appends user message → updates its `lastMessageId` cache
+2. Dispatcher calls `POST /chat` on sandbox → blocks until reply
+3. SDK appends assistant message to gateway (fire-and-forget, but completes during step 2)
+4. Dispatcher fire-and-forgets `loadMessages()` to sync cache with the new head
+
+The dispatcher's post-reply sync (`loadMessages`) already accounts for the sandbox having appended messages. No change needed — the SDK's `appendMessages` call is the same role the Python demo-agent's `gw.append_messages()` played. The dispatcher's sync mechanism remains as-is.
+
 ## 7. /chat request flow
 
 ```
@@ -238,6 +250,8 @@ Dispatcher `sandbox.ts` startup sequence simplifies:
 
 Dispatcher no longer orchestrates file sync and app startup separately. `createAgent()` handles all of it internally.
 
+Specifically, `sandbox.ts` should remove the `file_sync.py init`, `file_sync.py watch`, and `python app.py` startup steps (~40 lines of orchestration code) and replace with a single `node my-agent.js` command. The health check polling remains unchanged.
+
 ## 9. CLI scaffolding
 
 ```bash
@@ -279,12 +293,21 @@ packages/agent-sdk/
 
 ## 11. Risks to verify before implementation
 
+### Critical (must verify before committing to session architecture)
+
+The session persistence model in Section 6 depends entirely on these two capabilities. If either fails verification, the session management design must be revisited.
+
+| Risk | Verification |
+|------|-------------|
+| pi `SessionManager` accepts custom directory | Check `createAgentSession` parameters for directory override to `/persistent/conversation/` |
+| pi `createAgentSession` supports restoring from existing session files | Check `continueSession` mechanism — can it resume from a session dir populated by file sync? |
+
+### Standard (verify during implementation)
+
 | Risk | Verification |
 |------|-------------|
 | pi-ai `Model` interface supports custom implementations | Inspect pi-ai source code, confirm interface definition and required methods |
 | Gateway `/llm` may need streaming extension | Confirm whether pi agent loop requires streaming responses; if so, gateway needs SSE support |
-| pi `SessionManager` accepts custom directory | Check `createAgentSession` parameters for directory override |
-| pi `createAgentSession` supports restoring from existing session files | Check `continueSession` mechanism and file format |
 
 ## 12. Out of scope (future work)
 
