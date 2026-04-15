@@ -7,6 +7,7 @@ import {
 import express, { type Application } from 'express'
 import { join } from 'path'
 import { createGatewayLlmProvider } from './gateway-llm-adapter.js'
+import type { Model } from '@mariozechner/pi-ai'
 import type { GatewayClient } from './gateway-client.js'
 import type { ResolvedConfig, SandboxConfig } from './environment.js'
 
@@ -18,6 +19,9 @@ export interface HarnessServerOptions {
   gateway?: GatewayClient
 }
 
+// Note: /chat requests are processed serially by the pi agent session.
+// Concurrent requests are not supported in MVP — the dispatcher ensures
+// one request at a time per conversation (sandbox-per-conversation model).
 export async function createHarnessApp(options: HarnessServerOptions): Promise<Application> {
   const { config, systemPrompt, tools = [], gateway } = options
   const app = express()
@@ -45,7 +49,7 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
     : SessionManager.inMemory()
 
   // In sandbox mode, construct a Model pointing to gateway-llm provider
-  let gatewayModel: any | undefined
+  let gatewayModel: Model<any> | undefined
   if (config.mode === 'sandbox') {
     const sandboxConfig = config as SandboxConfig
     gatewayModel = {
@@ -69,6 +73,7 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
   }
 
   const { session } = await createAgentSession(sessionOptions)
+  let lastMessageId: string | null = null
 
   if (systemPrompt) {
     session.agent.setSystemPrompt(systemPrompt)
@@ -87,33 +92,44 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
 
     let lastReply = ''
 
-    await new Promise<void>((resolve) => {
-      const unsubscribe = session.subscribe((event: any) => {
-        if (event.type === 'message_update') {
-          const content = event.message?.content
-          if (Array.isArray(content) && event.message?.role === 'assistant') {
-            for (const block of content) {
-              if (block.type === 'text' && block.text) {
-                lastReply = block.text
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const unsubscribe = session.subscribe((event: any) => {
+          if (event.type === 'message_update') {
+            const content = event.message?.content
+            if (Array.isArray(content) && event.message?.role === 'assistant') {
+              for (const block of content) {
+                if (block.type === 'text' && block.text) {
+                  lastReply = block.text
+                }
               }
             }
           }
-        }
-        if (event.type === 'agent_end') {
+          if (event.type === 'agent_end') {
+            unsubscribe()
+            resolve()
+          }
+        })
+        session.prompt(message).catch((err: unknown) => {
           unsubscribe()
-          resolve()
-        }
+          reject(err)
+        })
       })
-      session.prompt(message)
-    })
+    } catch (err) {
+      console.error('[harness] agent error:', err)
+      res.status(500).json({ error: 'agent error' })
+      return
+    }
 
     // Fire-and-forget: persist assistant reply to gateway audit log in sandbox mode
     if (config.mode === 'sandbox' && gateway && lastReply) {
-      gateway.appendMessages(null, [{
+      gateway.appendMessages(lastMessageId, [{
         role: 'assistant',
         content: [{ type: 'text', text: lastReply }],
         source: 'sandbox',
-      }]).catch((err) => console.warn('[harness] appendMessages failed:', err))
+      }]).then((result) => {
+        lastMessageId = result.last_message_id
+      }).catch((err) => console.warn('[harness] appendMessages failed:', err))
     }
 
     res.json({ reply: lastReply })

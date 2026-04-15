@@ -73,6 +73,10 @@ export function createGatewayLlmProvider(
       const text = textBlock?.text ?? ''
       const { input_tokens, output_tokens } = data.usage
 
+      if (data.message.tool_calls && data.message.tool_calls.length > 0) {
+        console.warn('[gateway-llm] tool_calls returned by gateway but not supported; ignoring.')
+      }
+
       const partial = makeAssistantMessage(text, model.id, input_tokens, output_tokens)
       yield { type: 'text_start' as const, contentIndex: 0, partial }
       yield { type: 'text_delta' as const, contentIndex: 0, delta: text, partial }

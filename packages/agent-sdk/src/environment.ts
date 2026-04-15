@@ -29,6 +29,9 @@ export function resolveConfig(): ResolvedConfig {
     const gatewayUrl = process.env.GATEWAY_URL!.replace(/\/$/, '')
     const sessionToken = process.env.SESSION_TOKEN!
     const sessionId = process.env.SESSION_ID ?? ''
+    if (!sessionId) {
+      console.warn('[agent-sdk] Warning: SESSION_ID is not set. Gateway audit writes may fail.')
+    }
     const persistentRoot = process.env.PERSISTENT_ROOT ?? '/persistent'
     return { mode: 'sandbox', gatewayUrl, sessionToken, sessionId, port, persistentRoot }
   }
