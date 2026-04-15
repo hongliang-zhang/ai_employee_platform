@@ -1,0 +1,3 @@
+dockerfile = "e2b.Dockerfile"
+# After running `e2b template build`, fill in template_id:
+# template_id = ""

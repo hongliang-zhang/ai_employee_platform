@@ -3,6 +3,5 @@ WORKDIR /app
 COPY package.json .
 RUN npm install --production
 COPY dist/ ./dist/
-RUN mkdir -p /persistent/shared /persistent/conversation && \
-    chmod -R 777 /persistent
+RUN mkdir -p /persistent/shared /persistent/conversation
 CMD ["node", "dist/agent.js"]

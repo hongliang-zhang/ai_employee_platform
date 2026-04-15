@@ -1,0 +1,19 @@
+# {{name}}
+
+An AI agent built with `@aaas/agent-sdk`.
+
+## Development
+
+```bash
+npm install
+ANTHROPIC_API_KEY=sk-ant-... npm run dev
+curl -X POST http://localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"hello"}'
+```
+
+## Deploy to AaaS
+
+```bash
+npm run build
+e2b template build
+# Register template ID in e2b.toml, then register with AaaS platform
+```
