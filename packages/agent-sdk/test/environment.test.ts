@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { detectEnvironment, resolveConfig, type SandboxConfig } from '../src/environment.js'
+import { detectEnvironment, resolveConfig } from '../src/environment.js'
 
 describe('detectEnvironment', () => {
   const original = { ...process.env }

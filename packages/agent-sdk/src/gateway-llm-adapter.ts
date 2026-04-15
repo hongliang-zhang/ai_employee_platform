@@ -1,3 +1,4 @@
+import pino from 'pino'
 import type {
   Api,
   ApiProvider,
@@ -7,6 +8,8 @@ import type {
   Provider,
   SimpleStreamOptions,
 } from '@mariozechner/pi-ai'
+
+const logger = pino({ transport: { target: 'pino-pretty' } })
 
 const GATEWAY_PROVIDER = 'gateway' as const
 const GATEWAY_LLM_API = 'gateway-llm' as const
@@ -74,7 +77,7 @@ export function createGatewayLlmProvider(
       const { input_tokens, output_tokens } = data.usage
 
       if (data.message.tool_calls && data.message.tool_calls.length > 0) {
-        console.warn('[gateway-llm] tool_calls returned by gateway but not supported; ignoring.')
+          logger.warn({ event: 'gateway_llm.tool_calls_ignored' })
       }
 
       const partial = makeAssistantMessage(text, model.id, input_tokens, output_tokens)

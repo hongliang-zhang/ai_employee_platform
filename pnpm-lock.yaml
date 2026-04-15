@@ -35,6 +35,9 @@ importers:
       express:
         specifier: ^4.21.0
         version: 4.22.1
+      pino:
+        specifier: ^9.4.0
+        version: 9.14.0
     devDependencies:
       '@types/express':
         specifier: ^4.17.21
@@ -42,6 +45,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.17
+      '@types/pino':
+        specifier: ^7.0.5
+        version: 7.0.5
       '@types/supertest':
         specifier: ^7.2.0
         version: 7.2.0
@@ -1521,6 +1527,10 @@ packages:
 
   '@types/pg@8.20.0':
     resolution: {integrity: sha512-bEPFOaMAHTEP1EzpvHTbmwR8UsFyHSKsRisLIHVMXnpNefSbGA1bD6CVy+qKjGSqmZqNqBDV2azOBo8TgkcVow==}
+
+  '@types/pino@7.0.5':
+    resolution: {integrity: sha512-wKoab31pknvILkxAF8ss+v9iNyhw5Iu/0jLtRkUD74cNfOOLJNnqfFKAv0r7wVaTQxRZtWrMpGfShwwBjOcgcg==}
+    deprecated: This is a stub types definition. pino provides its own type definitions, so you do not need this installed.
 
   '@types/qs@6.15.0':
     resolution: {integrity: sha512-JawvT8iBVWpzTrz3EGw9BTQFg3BQNmwERdKE22vlTxawwtbyUSlMppvZYKLZzB5zgACXdXxbD3m1bXaMqP/9ow==}
@@ -5215,6 +5225,10 @@ snapshots:
       '@types/node': 22.19.17
       pg-protocol: 1.13.0
       pg-types: 2.2.0
+
+  '@types/pino@7.0.5':
+    dependencies:
+      pino: 9.14.0
 
   '@types/qs@6.15.0': {}
 

@@ -1,9 +1,12 @@
 import { createServer } from 'http'
+import pino from 'pino'
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent'
 import { resolveConfig } from './environment.js'
 import { FileSync } from './file-sync.js'
 import { GatewayClient } from './gateway-client.js'
 import { createHarnessApp } from './harness-server.js'
+
+const logger = pino({ transport: { target: 'pino-pretty' } })
 
 export interface CreateAgentOptions {
   /** System prompt for the agent */
@@ -25,19 +28,19 @@ export async function createAgent(options: CreateAgentOptions = {}): Promise<voi
     gateway = new GatewayClient(config.gatewayUrl, config.sessionToken)
     fileSync = new FileSync(gateway, config.persistentRoot)
 
-    console.log('[agent-sdk] Sandbox mode: initializing file sync...')
+    logger.info({ event: 'agent.file_sync_init', mode: 'sandbox' })
     await fileSync.init()
     fileSync.startWatch()
-    console.log('[agent-sdk] File sync started.')
+    logger.info({ event: 'agent.file_sync_started' })
   } else {
-    console.log('[agent-sdk] Local mode: skipping file sync.')
+    logger.info({ event: 'agent.start', mode: 'local' })
   }
 
   const app = await createHarnessApp({ systemPrompt, tools, skillDirs, config, gateway })
 
   const server = createServer(app)
   server.listen(config.port, () => {
-    console.log(`[agent-sdk] Agent listening on port ${config.port} (${config.mode} mode)`)
+    logger.info({ event: 'agent.listening', port: config.port, mode: config.mode })
   })
 
   // Graceful shutdown

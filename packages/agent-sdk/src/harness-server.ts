@@ -6,10 +6,13 @@ import {
 } from '@mariozechner/pi-coding-agent'
 import express, { type Application } from 'express'
 import { join } from 'path'
+import pino from 'pino'
 import { createGatewayLlmProvider } from './gateway-llm-adapter.js'
 import type { Model } from '@mariozechner/pi-ai'
 import type { GatewayClient } from './gateway-client.js'
 import type { ResolvedConfig, SandboxConfig } from './environment.js'
+
+const logger = pino({ transport: { target: 'pino-pretty' } })
 
 export interface HarnessServerOptions {
   systemPrompt: string
@@ -34,7 +37,7 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
       const { registerApiProvider } = await import('@mariozechner/pi-ai')
       registerApiProvider(provider, 'aaas-gateway')
     } catch (e) {
-      console.warn('[harness] could not register gateway LLM provider:', e)
+      logger.warn({ event: 'harness.provider_register_failed', error: String(e) })
     }
   }
 
@@ -116,7 +119,7 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
         })
       })
     } catch (err) {
-      console.error('[harness] agent error:', err)
+      logger.error({ event: 'harness.agent_error', error: String(err) })
       res.status(500).json({ error: 'agent error' })
       return
     }
@@ -129,7 +132,7 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
         source: 'sandbox',
       }]).then((result) => {
         lastMessageId = result.last_message_id
-      }).catch((err) => console.warn('[harness] appendMessages failed:', err))
+      }).catch((err) => logger.warn({ event: 'harness.append_messages_failed', error: String(err) }))
     }
 
     res.json({ reply: lastReply })

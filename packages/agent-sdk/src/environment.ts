@@ -1,3 +1,7 @@
+import pino from 'pino'
+
+const logger = pino({ transport: { target: 'pino-pretty' } })
+
 export type Environment = 'sandbox' | 'local'
 
 export interface SandboxConfig {
@@ -30,7 +34,7 @@ export function resolveConfig(): ResolvedConfig {
     const sessionToken = process.env.SESSION_TOKEN!
     const sessionId = process.env.SESSION_ID ?? ''
     if (!sessionId) {
-      console.warn('[agent-sdk] Warning: SESSION_ID is not set. Gateway audit writes may fail.')
+      logger.warn({ event: 'env.session_id_missing' }, 'SESSION_ID is not set — gateway audit writes may fail')
     }
     const persistentRoot = process.env.PERSISTENT_ROOT ?? '/persistent'
     return { mode: 'sandbox', gatewayUrl, sessionToken, sessionId, port, persistentRoot }

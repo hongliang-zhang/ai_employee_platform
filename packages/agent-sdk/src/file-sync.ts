@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { join, relative } from 'path'
+import pino from 'pino'
 import type { GatewayClient } from './gateway-client.js'
 
+const logger = pino({ transport: { target: 'pino-pretty' } })
 const POLL_INTERVAL_MS = 10_000
 
 export class FileSync {
@@ -30,7 +32,7 @@ export class FileSync {
         mkdirSync(join(localPath, '..'), { recursive: true })
         const res = await fetch(url)
         if (!res.ok) {
-          console.warn(`[file-sync] Failed to download ${path}: ${res.status}`)
+          logger.warn({ event: 'file_sync.download_failed', path, status: res.status })
           continue
         }
         const buf = await res.arrayBuffer()
@@ -44,7 +46,7 @@ export class FileSync {
   startWatch(): void {
     this.baseline = this.scanFiles()
     this.timer = setInterval(() => {
-      this.syncCycle().catch((err) => console.warn('[file-sync] sync cycle failed:', err))
+      this.syncCycle().catch((err) => logger.warn({ event: 'file_sync.cycle_failed', error: String(err) }))
     }, this.pollIntervalMs)
   }
 
@@ -96,9 +98,9 @@ export class FileSync {
         try {
           const data = readFileSync(localPath)
           const res = await fetch(url, { method: 'PUT', body: data })
-          if (!res.ok) console.warn(`[file-sync] Upload failed for ${path}: ${res.status}`)
+          if (!res.ok) logger.warn({ event: 'file_sync.upload_failed', path, status: res.status })
         } catch (err) {
-          console.warn(`[file-sync] Upload error for ${path}:`, err)
+          logger.warn({ event: 'file_sync.upload_error', path, error: String(err) })
         }
       }
     }

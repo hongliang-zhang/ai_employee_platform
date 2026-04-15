@@ -31,7 +31,7 @@ export default tseslint.config(
 
   // CLI scripts may use console directly — no pino logger in these
   {
-    files: ['scripts/**/*.ts'],
+    files: ['scripts/**/*.ts', 'packages/*/src/cli/**/*.ts'],
     rules: {
       'no-console': 'off',
     },
