@@ -74,8 +74,6 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
     session.agent.setSystemPrompt(systemPrompt)
   }
 
-  let lastReply = ''
-
   app.get('/health', (_req, res) => {
     res.json({ ok: true })
   })
@@ -87,7 +85,7 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
       return
     }
 
-    lastReply = ''
+    let lastReply = ''
 
     await new Promise<void>((resolve) => {
       const unsubscribe = session.subscribe((event: any) => {
@@ -111,7 +109,7 @@ export async function createHarnessApp(options: HarnessServerOptions): Promise<A
 
     // Fire-and-forget: persist assistant reply to gateway audit log in sandbox mode
     if (config.mode === 'sandbox' && gateway && lastReply) {
-      gateway.appendMessages(null as any, [{
+      gateway.appendMessages(null, [{
         role: 'assistant',
         content: [{ type: 'text', text: lastReply }],
         source: 'sandbox',
