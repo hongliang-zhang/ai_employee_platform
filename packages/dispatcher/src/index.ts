@@ -1,4 +1,5 @@
 import pino from 'pino'
+import * as lark from '@larksuiteoapi/node-sdk'
 import { createDb } from './db.js'
 import { createJwtSigner } from './jwt.js'
 import { createEncryptor } from './encrypt.js'
@@ -7,6 +8,7 @@ import { createInboundJobsManager } from './inbound-jobs.js'
 import { createGatewayClient } from './gateway-client.js'
 import { createSandboxOrchestrator } from './sandbox.js'
 import { createTelegramClient } from './telegram.js'
+import { createFeishuClient } from './feishu.js'
 import { createProcessor } from './processor.js'
 import { createPollingLoop } from './polling.js'
 import { createId } from '@paralleldrive/cuid2'
@@ -36,24 +38,49 @@ async function main() {
 
   const cfg = await db.imConfig.findFirst({
     where: { agentId: agent.id, status: 'active' },
-    select: { id: true, botTokenEnc: true },
+    select: { id: true, provider: true, credentialsEnc: true },
   })
   if (!cfg) throw new Error('No active im_config found — run setup.ts first')
 
-  const botToken = enc.decrypt(cfg.botTokenEnc)
+  // Decrypt credentials JSON (unified format for all providers)
+  const credentials = JSON.parse(enc.decrypt(cfg.credentialsEnc)) as Record<string, string>
   const channelKey = `im:${cfg.id}`
 
-  const telegram = createTelegramClient(botToken)
   const conversation = createConversationManager(db)
   const jobs = createInboundJobsManager(db, INSTANCE_ID)
   const gateway = createGatewayClient(GATEWAY_LOCAL_URL)
   const sandbox = createSandboxOrchestrator({ e2bApiKey: E2B_API_KEY, gatewayUrl: GATEWAY_URL, instanceId: INSTANCE_ID })
 
-  const processor = createProcessor({ conversation, jobs, gateway, sandbox, telegram, jwt, agent })
-  const poller = createPollingLoop({ botToken, channelKey, telegram, onMessage: msg => processor.handle(msg) })
+  logger.info({ event: 'dispatcher.start', provider: cfg.provider, agent_id: agent.id, instance_id: INSTANCE_ID })
 
-  logger.info({ event: 'dispatcher.start', agent_id: agent.id, instance_id: INSTANCE_ID })
-  poller.start()
+  if (cfg.provider === 'telegram') {
+    const telegram = createTelegramClient(credentials.bot_token)
+    const processor = createProcessor({ conversation, jobs, gateway, sandbox, im: telegram, jwt, agent })
+    const poller = createPollingLoop({ botToken: credentials.bot_token, channelKey, telegram, onMessage: msg => processor.handle(msg) })
+    poller.start()
+
+  } else if (cfg.provider === 'feishu') {
+    // Fetch bot open_id for group @mention filtering
+    // API: GET /open-apis/bot/v3/info, requires im:bot permission
+    const tmpClient = new lark.Client({ appId: credentials.app_id, appSecret: credentials.app_secret })
+    const botInfoResp = await (tmpClient as any).request({
+      method: 'GET',
+      url: '/open-apis/bot/v3/info',
+    }) as any
+    const botOpenId: string = botInfoResp?.bot?.open_id ?? ''
+    if (!botOpenId) throw new Error('Failed to fetch Feishu bot open_id — check app_id/app_secret and im:bot permission')
+
+    logger.info({ event: 'feishu.bot_identity', bot_open_id: botOpenId })
+
+    const { client: feishuClient, start } = createFeishuClient(credentials.app_id, credentials.app_secret, botOpenId)
+    const processor = createProcessor({ conversation, jobs, gateway, sandbox, im: feishuClient, jwt, agent })
+
+    // start() awaits WSClient — keeps the long connection alive, process won't exit
+    await start(msg => processor.handle(msg), channelKey)
+
+  } else {
+    throw new Error(`Unsupported provider: ${cfg.provider}`)
+  }
 }
 
 main().catch(err => {
