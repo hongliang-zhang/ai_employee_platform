@@ -1,9 +1,8 @@
-FROM python:3.11-slim
+FROM node:20-slim
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY gateway_client.py .
-COPY app.py .
-COPY file_sync.py .
+COPY package.json .
+RUN npm install --production
+COPY dist/ ./dist/
 RUN mkdir -p /persistent/shared /persistent/conversation && \
     chmod -R 777 /persistent
+CMD ["node", "dist/agent.js"]
