@@ -6,7 +6,7 @@ const mockConversation = { upsert: vi.fn(), getLastMessageId: vi.fn(), setLastMe
 const mockJobs = { tryInsert: vi.fn(), markProcessing: vi.fn(), markDone: vi.fn(), markFailed: vi.fn() }
 const mockGateway = { appendMessages: vi.fn(), loadMessages: vi.fn() }
 const mockSandbox = { getOrCreate: vi.fn(), destroy: vi.fn() }
-const mockTelegram = { sendMessage: vi.fn(), sendChatAction: vi.fn() }
+const mockIm = { sendMessage: vi.fn(), sendChatAction: vi.fn() }
 const mockJwt = { signSandboxToken: vi.fn(), signDispatcherToken: vi.fn() }
 
 const AGENT = { id: 'agt_1', e2bTemplateId: 'tpl_1', port: 8080, idleTimeoutMs: 300000 }
@@ -18,7 +18,7 @@ const processor = createProcessor({
   jobs: mockJobs as any,
   gateway: mockGateway as any,
   sandbox: mockSandbox as any,
-  telegram: mockTelegram as any,
+  im: mockIm as any,
   jwt: mockJwt as any,
   agent: AGENT,
 })
@@ -62,7 +62,7 @@ describe('processor.handle', () => {
 
     expect(mockGateway.appendMessages).toHaveBeenCalledOnce()
     expect(mockSandbox.getOrCreate).toHaveBeenCalledOnce()
-    expect(mockTelegram.sendMessage).toHaveBeenCalledWith('123', 'Hi!')
+    expect(mockIm.sendMessage).toHaveBeenCalledWith('123', 'Hi!')
     expect(mockJobs.markDone).toHaveBeenCalledOnce()
     expect(mockConversation.setLastMessageId).toHaveBeenCalled()
   })
@@ -78,6 +78,6 @@ describe('processor.handle', () => {
     await processor.handle(normalizedMsg)
 
     expect(mockJobs.markFailed).toHaveBeenCalledOnce()
-    expect(mockTelegram.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('不可用'))
+    expect(mockIm.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('不可用'))
   })
 })
