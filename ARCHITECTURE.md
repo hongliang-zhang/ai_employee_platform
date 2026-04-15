@@ -115,4 +115,4 @@ Dispatcher maintains an in-memory `lastMessageId` cache per conversation, update
 - Single dispatcher instance (no horizontal scaling; `inbound_jobs` lease recovery exists but untested at scale)
 - Sandbox map is in-memory (lost on dispatcher restart; next message recreates sandbox)
 - No dashboard / web UI yet
-- Telegram only (im_configs.platform is always `'telegram'`)
+- Telegram and Feishu supported (`im_configs.provider` IN ('telegram', 'feishu'))
