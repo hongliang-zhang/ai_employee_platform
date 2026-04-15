@@ -1,8 +1,10 @@
 import type {
+  Api,
   ApiProvider,
   AssistantMessage,
   AssistantMessageEventStream,
   Context,
+  Provider,
   SimpleStreamOptions,
 } from '@mariozechner/pi-ai'
 
@@ -21,14 +23,14 @@ function makeAssistantMessage(
   return {
     role: 'assistant',
     content: text ? [{ type: 'text', text }] : [],
-    api: GATEWAY_LLM_API,
-    provider: GATEWAY_PROVIDER,
+    api: GATEWAY_LLM_API as Api,
+    provider: GATEWAY_PROVIDER as Provider,
     model: modelId,
     usage: { ...zeroUsage, input: inputTokens, output: outputTokens, totalTokens: inputTokens + outputTokens },
     stopReason,
     errorMessage,
     timestamp: Date.now(),
-  } as unknown as AssistantMessage
+  } as AssistantMessage
 }
 
 export function createGatewayLlmProvider(
@@ -40,7 +42,7 @@ export function createGatewayLlmProvider(
   function streamSimple(
     model: { id: string; api: string },
     context: Context,
-    _options?: SimpleStreamOptions,
+    _options?: SimpleStreamOptions, // options ignored: gateway /llm is non-streaming
   ): AssistantMessageEventStream {
     return (async function* () {
       const emptyPartial = makeAssistantMessage('', model.id, 0, 0)
@@ -81,6 +83,8 @@ export function createGatewayLlmProvider(
 
   return {
     api: GATEWAY_LLM_API,
+    // Gateway /llm is non-streaming; stream() degrades to streamSimple() since
+    // tool-call handling is not needed for the current gateway model.
     stream: streamSimple as any,
     streamSimple,
   }
