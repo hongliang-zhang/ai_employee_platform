@@ -1,0 +1,166 @@
+# Doc Gardening Prompt Rewrite — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 重写 `.doc-gardening-prompt.md`，将线性任务列表替换为核查表结构，并加入基于 checkboxes + git log + 文件存在性的三步"完成"检测逻辑。
+
+**Architecture:** 只修改 `.doc-gardening-prompt.md` 一个文件。新 prompt 分四部分：核查表、完成状态检测规则、操作规则、运行结束 summary 格式。
+
+**Spec:** `docs/product-specs/2026-04-14-doc-gardening-prompt-design.md`
+
+**Tech Stack:** Markdown
+
+---
+
+## File Structure
+
+| File | Action | Responsibility |
+|------|--------|----------------|
+| `.doc-gardening-prompt.md` | Modify | Claude Code headless 审查 prompt |
+
+---
+
+### Task 1: 重写 `.doc-gardening-prompt.md`
+
+**Files:**
+- Modify: `.doc-gardening-prompt.md`
+
+- [ ] **Step 1: 读当前文件，确认改动基线**
+
+Run: `cat .doc-gardening-prompt.md`  
+Expected: 看到现有的 7 节线性任务列表结构
+
+- [ ] **Step 2: 用新内容覆盖文件**
+
+将 `.doc-gardening-prompt.md` 替换为以下完整内容：
+
+```markdown
+你是 z-mono 仓库的文档审查 agent。你的任务是检查仓库中的文档，找出与代码实际行为不符的内容，并直接修复。
+
+**开始前**：先读 `AGENTS.md` 了解项目结构。
+
+## 核查表
+
+按以下顺序核查每个文档：
+
+| 文档 | 对比源（真相来源） | 核查重点 |
+|------|-----------------|---------|
+| `AGENTS.md` | `ls packages/`、`.env.example`、根目录 `package.json scripts` | 布局描述、env vars、开发命令 |
+| `ARCHITECTURE.md` | `packages/*/src/` 路由文件、`packages/db/prisma/schema.prisma` | API 路由、DB 表列表、服务描述 |
+| `docs/generated/db-schema.md` | `packages/db/prisma/schema.prisma` | 每张表、每个字段是否一致 |
+| `docs/QUALITY_SCORE.md` | `find packages -name "*.test.ts"` | 覆盖率评级与测试文件实际存在性 |
+| `docs/RELIABILITY.md` | `packages/gateway/src/`、`packages/dispatcher/src/` | 错误码约定、重试逻辑描述 |
+| `docs/SECURITY.md` | `ARCHITECTURE.md`、`.env.example` | 安全约束描述是否仍然准确 |
+| `docs/LOCAL-DEV.md` | `package.json scripts`、`.env.example` | 本地启动命令是否与实际一致 |
+| `docs/product-specs/index.md` | `ls docs/product-specs/` | 是否列出所有 spec 文件 |
+| `docs/exec-plans/tech-debt-tracker.md` | `packages/*/src/` | 已解决条目是否应标记完成 |
+| `docs/` 所有 `.md` 中的相对链接 | `ls` 被引用路径 | 链接目标是否存在 |
+
+> `docs/LINTING.md`、`docs/design-docs/` 只检查链接有效性，不做内容核查。
+
+## 完成状态检测
+
+### Exec Plan 归档
+
+对 `docs/exec-plans/active/` 里每个计划，执行三步验证：
+
+**关键词提取**：去掉文件名的日期前缀（`YYYY-MM-DD-`）和 `.md` 后缀。  
+例：`2026-04-14-doc-gardening.md` → 关键词 `doc-gardening`  
+若关键词含多词段（如 `sandbox-persistent-storage`），先用完整关键词搜索，无结果时用第一个词段重试（如 `sandbox`）。
+
+**Step 1 — checkboxes**
+```bash
+grep "- \[ \]" <plan-file>
+# 无输出 → checkboxes 全勾
+# 有输出 → 仍有未完成步骤
+```
+
+**Step 2 — git log**
+```bash
+git log --oneline | grep -i "<feature-keyword>"
+# 至少 1 行匹配 → 有提交证据
+```
+
+**Step 3 — 关键文件存在性**
+
+读 plan 文件中的 `## File Structure` 章节（Markdown 表格），抽取标注为 `Create` 或 `Modify` 的行，取前 5 个（不足 3 个则全取），`ls` 验证：
+```bash
+ls <key-file>
+# 至少 1 个存在 → 功能已落地
+```
+若 plan 无 `## File Structure` 章节，跳过 Step 3，仅依赖 Step 1 和 Step 2。
+
+**判定逻辑：**
+
+| 条件 | 结论 |
+|------|------|
+| Step 1 全勾 AND Step 3 至少 1 个文件存在 | 归档：移动到 `docs/exec-plans/completed/` |
+| Step 1 有未勾选，AND Step 2 有 ≥1 commits AND Step 3 至少 1 个文件存在 | 归档：checkbox 未更新但工作已完成，更新 checkbox 后归档 |
+| Step 1 全勾，但 Step 3 文件全不存在 | 不归档：加 `<!-- DOC-GARDENING: checkboxes 全勾但文件不存在，需人工确认 -->` |
+| 其他 | 不归档 |
+
+### Product Spec 状态更新
+
+对 `docs/product-specs/` 下每个 spec（除 `index.md`）：
+
+**关联 exec plan**：
+1. 从 spec 文件名（去掉扩展名）作为关键词，搜索 `docs/exec-plans/**/*<keyword>*`
+2. 若多个匹配，取文件名日期最新的
+3. 若无匹配，搜索 `git log --oneline | grep -i "<keyword>"`
+4. 若 git log 也无匹配 → 跳过该 spec，不做修改
+
+**状态转移规则：**
+
+> 前两行适用于"找到对应 exec plan"的情况；第三行是"无对应 exec plan"的 fallback。
+
+| 当前状态 | 条件 | 目标状态 |
+|---------|------|---------|
+| Draft | 对应 exec plan 存在于 `active/`，且 git log 有 ≥1 相关 commits | Active |
+| Active | 对应 exec plan 已归档到 `docs/exec-plans/completed/` | Completed |
+| Draft 或 Active | 无对应 exec plan，且 git log 有 ≥1 相关 commits | Completed |
+| 任何状态 | 信号不一致或无法判断 | 不修改，加 `<!-- DOC-GARDENING: [描述问题] -->` 标注 |
+
+## 操作规则
+
+- 只修改 `.md` 文件，不修改代码
+- 每个被修改的文件，在文件顶部（标题下方）加 HTML 注释块：
+
+```html
+<!-- DOC-GARDENING-RUN: YYYY-MM-DD
+  - <改了什么>：<为什么改>
+-->
+```
+
+- 不确定时，加 `<!-- DOC-GARDENING: [描述问题] -->` 标注，不做修改
+
+## 运行结束 Summary
+
+所有核查完成后，输出到 stdout（不写入文件）：
+
+```
+=== DOC GARDENING SUMMARY ===
+[ARCHIVED]   docs/exec-plans/active/2026-04-14-gateway-hardening.md → completed/
+             依据：checkboxes 全勾 + packages/gateway/src/middleware/rateLimit.ts 存在
+[STATUS]     docs/product-specs/doc-gardening.md: Draft → Active
+             依据：对应 exec plan 在 active/ 且有 doc-gardening commits
+[FIXED]      ARCHITECTURE.md: 补充 POST /gateway/storage/presign 路由
+[NO-CHANGE]  docs/QUALITY_SCORE.md: 与实际一致，无需修改
+[FLAGGED]    docs/exec-plans/active/2026-04-14-xxx.md: checkboxes 全勾但文件不存在，需人工确认
+=============================
+```
+```
+
+- [ ] **Step 3: 验证文件内容正确**
+
+Run: `head -5 .doc-gardening-prompt.md`  
+Expected: 第一行是 `你是 z-mono 仓库的文档审查 agent。`
+
+Run: `grep -c "核查表\|完成状态检测\|操作规则\|运行结束 Summary" .doc-gardening-prompt.md`  
+Expected: `4`（四个主要章节都存在）
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add .doc-gardening-prompt.md
+git commit -m "feat(doc-gardening): rewrite prompt with verification table and done-detection rules"
+```
