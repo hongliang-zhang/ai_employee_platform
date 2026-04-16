@@ -45,13 +45,14 @@ test:
   extends: .pnpm_setup
   stage: validate
   services:
-    - name: uhub.service.ucloud.cn/wudao/ci-postgres:16p1
-      alias: postgres
+    - name: uhub.service.ucloud.cn/wudao/ci-mysql:8p1
+      alias: mysql
   variables:
-    POSTGRES_DB: aaas
-    POSTGRES_USER: aaas
-    POSTGRES_PASSWORD: aaas
-    DATABASE_URL: postgres://aaas:aaas@postgres:5432/aaas
+    MYSQL_DATABASE: aaas
+    MYSQL_USER: aaas
+    MYSQL_PASSWORD: aaas
+    MYSQL_ROOT_PASSWORD: aaas
+    DATABASE_URL: mysql://aaas:aaas@mysql:3306/aaas
     JWT_SECRET: test-secret-32-chars-minimum-len
     LLM_API_KEY: test-key
   script:
