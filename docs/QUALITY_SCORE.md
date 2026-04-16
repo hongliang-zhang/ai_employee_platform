@@ -1,3 +1,6 @@
+<!-- DOC-GARDENING-CHANGE: 2026-04-16
+  - Added agent-sdk section: The agent-sdk package exists with 5 test files (environment, file-sync, gateway-client, gateway-llm-adapter, harness-server) but was not listed in QUALITY_SCORE.md
+-->
 # Quality Score
 
 Per-module assessment of test coverage and known gaps. Updated as work progresses.
@@ -28,6 +31,18 @@ Scale: ✅ Good · ⚠️ Partial · ❌ Missing
 | Processor end-to-end | ❌ | No integration test covering the full message → reply flow |
 | Retry / backoff logic | ⚠️ | `utils.ts` retryWithBackoff has tests; retry paths in processor are not independently tested |
 | Stale lease recovery | ❌ | Recovery index exists but recovery loop not implemented (see TD-002) |
+
+---
+
+## agent-sdk
+
+| Area | Score | Notes |
+|------|-------|-------|
+| Environment setup | ✅ | `test/environment.test.ts` covers environment variable parsing |
+| File sync | ✅ | `test/file-sync.test.ts` covers file sync operations |
+| Gateway client | ✅ | `test/gateway-client.test.ts` covers gateway API calls |
+| LLM adapter | ✅ | `test/gateway-llm-adapter.test.ts` covers LLM integration |
+| Harness server | ✅ | `test/harness-server.test.ts` covers HTTP server |
 
 ---
 

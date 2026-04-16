@@ -1,7 +1,10 @@
+<!-- DOC-GARDENING-CHANGE: 2026-04-16
+  - Updated status from 待实现 to Completed: Feishu WebSocket client implemented in dispatcher, schema migration applied (provider/credentials_enc renaming), IMClient abstraction in place
+-->
 # 飞书 Gateway 接入设计
 
-**日期**：2026-04-15  
-**状态**：待实现  
+**日期**：2026-04-15
+**状态**：Completed
 **范围**：`packages/dispatcher`（主要）、`packages/db`（schema 变更）
 
 ---

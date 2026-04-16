@@ -1,7 +1,10 @@
+<!-- DOC-GARDENING-CHANGE: 2026-04-16
+  - Updated status from Approved to Completed: SDK package fully implemented with all modules (createAgent, file-sync, gateway-client, harness-server) and tests
+-->
 # Agent SDK Design
 
 **Date:** 2026-04-15
-**Status:** Approved
+**Status:** Completed
 
 ## 1. Overview
 
