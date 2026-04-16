@@ -25,25 +25,56 @@ export async function createAgent(options: CreateAgentOptions = {}): Promise<voi
   if (config.mode === 'sandbox') {
     gateway = new GatewayClient(config.gatewayUrl, config.sessionToken)
     fileSync = new FileSync(gateway, config.persistentRoot)
-
-    logger.info({ event: 'agent.file_sync_init', mode: 'sandbox' })
-    await fileSync.init()
-    fileSync.startWatch()
-    logger.info({ event: 'agent.file_sync_started' })
   } else {
     logger.info({ event: 'agent.start', mode: 'local' })
   }
 
-  const app = await createHarnessApp({ systemPrompt, tools, skillDirs, config, gateway })
+  // Build the express app synchronously (no async init yet — just mounts routes).
+  // /health is available as soon as server.listen() is called.
+  const app = createHarnessApp({ systemPrompt, tools, skillDirs, config, gateway })
+
+  // Mark flags as false so /chat returns 503 until both are ready
+  app.locals.sessionReady = false
+  app.locals.fileSyncReady = config.mode !== 'sandbox' // local: no file sync needed
 
   const server = createServer(app)
-  server.listen(config.port, () => {
+
+  await new Promise<void>((resolve) => server.listen(config.port, () => {
     logger.info({ event: 'agent.listening', port: config.port, mode: config.mode })
+    resolve()
+  }))
+
+  // After listen(), kick off session init and file sync in parallel.
+  // /health already returns 200; /chat returns 503 until both complete.
+  const sessionInitPromise = app.locals.initSession().catch((err: unknown) => {
+    logger.error({ event: 'agent.session_init_failed', error: String(err) })
+    app.locals.sessionInitError = String(err)
   })
+
+  const fileSyncPromise = fileSync
+    ? (() => {
+        const initStart = Date.now()
+        logger.info({ event: 'agent.file_sync_init', mode: 'sandbox' })
+        return fileSync!.init()
+          .then(() => {
+            fileSync!.startWatch()
+            logger.info({ event: 'agent.file_sync_started', duration_ms: Date.now() - initStart })
+          })
+          .catch((err) => {
+            logger.error({ event: 'agent.file_sync_failed', error: String(err) })
+          })
+          .finally(() => { app.locals.fileSyncReady = true })
+      })()
+    : Promise.resolve()
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
     fileSync?.stopWatch()
     server.close(() => process.exit(0))
   })
+
+  // In local mode, await both so the process doesn't exit early
+  if (config.mode !== 'sandbox') {
+    await Promise.all([sessionInitPromise, fileSyncPromise])
+  }
 }

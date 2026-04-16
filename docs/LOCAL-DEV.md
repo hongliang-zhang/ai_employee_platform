@@ -116,7 +116,49 @@ curl http://localhost:3001/health          # local
 curl https://gateway.iefnaf.cc/health     # via tunnel (must return {"ok":true})
 ```
 
-**End-to-end test:** Send any message to your Telegram bot. You should see this sequence in the dispatcher log:
+### Sending messages via lark-cli (Feishu)
+
+Instead of manually opening Feishu to send test messages to the bot, you can use `lark-cli` from the terminal.
+
+**Prerequisite:** User authorization is required (bot identity cannot DM another bot). First-time setup:
+
+```bash
+# Log in with your Feishu user identity (opens browser for QR scan)
+lark-cli auth login --domain im
+```
+
+**Send a message to clawdbot:**
+
+```bash
+# The P2P chat ID with clawdbot
+lark-cli im +messages-send \
+  --chat-id oc_35841d6fd9ac976a90ce3889a9432060 \
+  --text "hello" \
+  --as user
+```
+
+Key details:
+- `--as user` — sends as your user identity (required; bot identity cannot message another bot directly)
+- `--chat-id oc_35841d6fd9ac976a90ce3889a9432060` — the P2P conversation with clawdbot
+- Supports `--text` (plain text), `--markdown` (Markdown), `--image`, `--file` etc.
+- Full help: `lark-cli im +messages-send --help`
+
+**Useful commands for debugging:**
+
+```bash
+# Check auth status
+lark-cli auth status
+
+# List messages in the P2P chat
+lark-cli im +chat-messages-list --chat-id oc_35841d6fd9ac976a90ce3889a9432060 --as user
+
+# List messages in the test group chat
+lark-cli im +chat-messages-list --chat-id oc_3c1b7fa53a2a41509e72f83e49563b14 --as user
+```
+
+---
+
+**Telegram end-to-end test:** Send any message to your Telegram bot. You should see this sequence in the dispatcher log:
 
 ```
 message.received       ← Telegram message picked up
@@ -179,24 +221,34 @@ ln -s ../../.env packages/db/.env
 The `demo-agent` package is deployed as an e2b sandbox template. Building and pushing the template is done with the e2b CLI from `packages/demo-agent/`.
 
 ```bash
-# 1. Rebuild agent-sdk (demo-agent depends on it)
-pnpm --filter @aaas/agent-sdk build
+# 1. Make sure demo-agent depends on the published SDK version
+#    (currently @alexlikevibe/agent-sdk)
+pnpm install
 
-# 2. Bundle demo-agent into a self-contained file
-#    (esbuild inlines all dependencies, including agent-sdk)
-cd packages/demo-agent
-npx esbuild src/agent.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/agent.js
+# 2. Build demo-agent with tsc
+pnpm --filter @aaas/demo-agent build
 
 # 3. Push to e2b (--no-cache ensures latest code is used)
+cd packages/demo-agent
 HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 \
   e2b template build --name demo-agent --no-cache
 ```
 
-After a successful build, update `E2B_TEMPLATE_ID` in `.env` with the new template ID printed in the output (also recorded in `packages/demo-agent/e2b.toml`).
+After a successful build, update `E2B_TEMPLATE_ID` in `.env` with the template ID printed in the output (also recorded in `packages/demo-agent/e2b.toml`).
 
-#### Why esbuild instead of tsc?
+#### Why npm package + tsc instead of esbuild?
 
-`demo-agent` depends on `@aaas/agent-sdk` via `workspace:*`. This works fine in the monorepo but fails inside a Docker container — `npm install` cannot resolve workspace references. The solution is to bundle everything into a single self-contained `dist/agent.js` with esbuild before building the Docker image. The `e2b.Dockerfile` then just copies that one file.
+`demo-agent` originally depended on `@aaas/agent-sdk` via `workspace:*`. That worked inside the monorepo but failed inside the Docker build because `npm install` in the container cannot resolve workspace references.
+
+The temporary workaround was to bundle everything with esbuild, but that caused runtime issues with `pino` / `pino-pretty` (dynamic require and transport resolution problems).
+
+The correct fix is:
+- publish the SDK to npm as `@alexlikevibe/agent-sdk`
+- let `demo-agent` depend on the published package
+- build `demo-agent` with plain `tsc`
+- let the Dockerfile run `npm install --production` normally
+
+This keeps runtime behavior aligned with standard Node.js module resolution and avoids bundling edge cases.
 
 #### Why HTTPS_PROXY is required
 
@@ -206,7 +258,7 @@ Alternatively, configure Docker Desktop directly: **Settings → Resources → P
 
 #### Why --no-cache
 
-Without `--no-cache`, Docker may reuse a cached layer for `COPY dist/agent.js` even if the file has changed (BuildKit caches based on file content hash, so in practice this is safe — but `--no-cache` makes it explicit and avoids any doubt).
+Without `--no-cache`, Docker may reuse cached layers. In principle `COPY dist/` is content-addressed and safe, but `--no-cache` removes doubt during template updates and is recommended when you want to guarantee the latest code is used.
 
 #### Verifying the build
 

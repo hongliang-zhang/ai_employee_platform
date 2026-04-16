@@ -18,13 +18,13 @@ export function createSandboxOrchestrator(config: {
   const sandboxMap = new Map<string, SandboxEntry>()
   const timerMap = new Map<string, NodeJS.Timeout>()
 
-  async function pollHealth(chatUrl: string, maxAttempts = 30): Promise<boolean> {
+  async function pollHealth(chatUrl: string, maxAttempts = 150): Promise<boolean> {
     for (let i = 0; i < maxAttempts; i++) {
       try {
         const res = await fetch(`${chatUrl}/health`, { signal: AbortSignal.timeout(5_000) })
         if (res.ok) return true
       } catch { /* health check not ready yet, retry */ }
-      await new Promise(r => setTimeout(r, 1000))
+      await new Promise(r => setTimeout(r, 200))
     }
     return false
   }

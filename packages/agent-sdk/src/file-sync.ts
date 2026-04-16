@@ -18,11 +18,19 @@ export class FileSync {
     mkdirSync(join(this.root, 'shared'), { recursive: true })
     mkdirSync(join(this.root, 'conversation'), { recursive: true })
 
-    for (const prefix of ['shared', 'conversation'] as const) {
-      const files = await this.gateway.listFiles(prefix)
-      if (files.length === 0) continue
+    // Fetch both prefixes in parallel
+    const [sharedFiles, conversationFiles] = await Promise.all([
+      this.gateway.listFiles('shared'),
+      this.gateway.listFiles('conversation'),
+    ])
 
-      const ops = files.map((f) => ({ action: 'download' as const, path: f.path }))
+    const allFiles = [
+      ...sharedFiles,
+      ...conversationFiles,
+    ]
+
+    if (allFiles.length > 0) {
+      const ops = allFiles.map((f) => ({ action: 'download' as const, path: f.path }))
       const urls = await this.gateway.presignUrls(ops)
 
       for (const { path, url } of urls) {
