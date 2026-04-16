@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createPrismaClient } from '@aaas/db'
 import { createConversationManager } from '../src/conversation.js'
 
-const DB_URL = process.env.DATABASE_URL ?? 'postgres://aaas:aaas@localhost:5432/aaas'
+const DB_URL = process.env.DATABASE_URL ?? 'mysql://aaas:aaas@localhost:4000/aaas'
 const prisma = createPrismaClient(DB_URL)
 const AGENT_ID = 'agt_convtest'
 const CFG_ID = 'cfg_convtest'
@@ -15,6 +15,8 @@ beforeAll(async () => {
   })
 })
 afterAll(async () => {
+  await prisma.message.deleteMany({ where: { conversation: { agentId: AGENT_ID } } })
+  await prisma.inboundJob.deleteMany({ where: { conversation: { agentId: AGENT_ID } } })
   await prisma.conversation.deleteMany({ where: { agentId: AGENT_ID } })
   await prisma.agent.deleteMany({ where: { id: AGENT_ID } })
   await prisma.$disconnect()

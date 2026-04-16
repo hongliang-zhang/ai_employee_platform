@@ -9,7 +9,7 @@ import app from '../src/index.js'
 // documented in docs/LOCAL-DEV.md; the localhost fallback is only a last-resort
 // default for isolated environments.
 const SECRET = process.env.JWT_SECRET ?? 'test-secret-32-chars-minimum-len'
-const DB_URL = process.env.DATABASE_URL ?? 'postgres://aaas:aaas@localhost:5432/aaas'
+const DB_URL = process.env.DATABASE_URL ?? 'mysql://aaas:aaas@localhost:4000/aaas'
 
 const prisma = createPrismaClient(DB_URL)
 

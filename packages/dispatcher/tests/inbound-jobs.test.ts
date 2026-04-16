@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { createPrismaClient } from '@aaas/db'
 import { createInboundJobsManager } from '../src/inbound-jobs.js'
 
-const DB_URL = process.env.DATABASE_URL ?? 'postgres://aaas:aaas@localhost:5432/aaas'
+const DB_URL = process.env.DATABASE_URL ?? 'mysql://aaas:aaas@localhost:4000/aaas'
 const prisma = createPrismaClient(DB_URL)
 const AGENT_ID = 'agt_jobtest'
 const CFG_ID = 'cfg_jobtest'

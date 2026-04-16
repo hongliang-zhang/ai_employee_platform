@@ -4,13 +4,13 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
 }
 
 model User {
   id        String   @id
   email     String   @unique
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@map("users")
 }
@@ -22,7 +22,7 @@ model Agent {
   e2bTemplateId String   @map("e2b_template_id")
   port          Int      @default(8080)
   idleTimeoutMs Int      @default(300000) @map("idle_timeout_ms")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  createdAt     DateTime @default(now()) @map("created_at")
 
   imConfigs     ImConfig[]
   conversations Conversation[]
@@ -38,8 +38,8 @@ model ImConfig {
   chatScope      String    @default("all") @map("chat_scope")
   status         String
   leaseOwner     String?   @map("lease_owner")
-  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz()
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   agent Agent @relation(fields: [agentId], references: [id])
 
@@ -52,8 +52,8 @@ model Conversation {
   channelKey        String    @map("channel_key")
   externalChatId    String    @map("external_chat_id")
   externalThreadKey String    @default("") @map("external_thread_key")
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  lastMessageAt     DateTime? @map("last_message_at") @db.Timestamptz()
+  createdAt         DateTime  @default(now()) @map("created_at")
+  lastMessageAt     DateTime? @map("last_message_at")
 
   agent       Agent        @relation(fields: [agentId], references: [id])
   messages    Message[]
@@ -71,7 +71,7 @@ model Message {
   source            String
   externalMessageId String?  @map("external_message_id")
   metadataJson      Json     @default("{}") @map("metadata_json")
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  createdAt         DateTime @default(now()) @map("created_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
@@ -85,8 +85,8 @@ model InboundJob {
   conversationId    String    @map("conversation_id")
   status            String
   leaseOwner        String?   @map("lease_owner")
-  leaseExpiresAt    DateTime? @map("lease_expires_at") @db.Timestamptz()
-  receivedAt        DateTime  @default(now()) @map("received_at") @db.Timestamptz()
+  leaseExpiresAt    DateTime? @map("lease_expires_at")
+  receivedAt        DateTime  @default(now()) @map("received_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
 

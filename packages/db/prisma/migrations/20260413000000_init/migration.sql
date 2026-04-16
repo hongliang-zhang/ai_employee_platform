@@ -1,66 +1,69 @@
--- migrations/001_initial.sql
+-- migrations/001_initial.sql (MySQL/TiDB)
 
 CREATE TABLE users (
-  id          TEXT PRIMARY KEY,
-  email       TEXT UNIQUE NOT NULL,
-  created_at  TIMESTAMPTZ DEFAULT now()
+  id          VARCHAR(191) NOT NULL PRIMARY KEY,
+  email       VARCHAR(191) NOT NULL UNIQUE,
+  created_at  DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3)
 );
 
 CREATE TABLE agents (
-  id              TEXT PRIMARY KEY,
-  name            TEXT NOT NULL,
-  status          TEXT NOT NULL CHECK (status IN ('active','paused','deleted')),
-  e2b_template_id TEXT NOT NULL,
-  port            INT  NOT NULL DEFAULT 8080,
-  idle_timeout_ms INT  NOT NULL DEFAULT 300000,
-  created_at      TIMESTAMPTZ DEFAULT now()
+  id              VARCHAR(191) NOT NULL PRIMARY KEY,
+  name            VARCHAR(191) NOT NULL,
+  status          VARCHAR(191) NOT NULL,
+  e2b_template_id VARCHAR(191) NOT NULL,
+  port            INT          NOT NULL DEFAULT 8080,
+  idle_timeout_ms INT          NOT NULL DEFAULT 300000,
+  created_at      DATETIME(3)  DEFAULT CURRENT_TIMESTAMP(3)
 );
 
 CREATE TABLE im_configs (
-  id               TEXT PRIMARY KEY,
-  agent_id         TEXT NOT NULL REFERENCES agents(id),
-  platform         TEXT NOT NULL DEFAULT 'telegram',
-  bot_token_enc    TEXT NOT NULL,
-  chat_scope       TEXT NOT NULL DEFAULT 'all',
-  status           TEXT NOT NULL CHECK (status IN ('active','paused','disabled')),
-  lease_owner      TEXT,
-  lease_expires_at TIMESTAMPTZ,
-  created_at       TIMESTAMPTZ DEFAULT now()
+  id               VARCHAR(191) NOT NULL PRIMARY KEY,
+  agent_id         VARCHAR(191) NOT NULL,
+  platform         VARCHAR(191) NOT NULL DEFAULT 'telegram',
+  bot_token_enc    VARCHAR(191) NOT NULL,
+  chat_scope       VARCHAR(191) NOT NULL DEFAULT 'all',
+  status           VARCHAR(191) NOT NULL,
+  lease_owner      VARCHAR(191),
+  lease_expires_at DATETIME(3),
+  created_at       DATETIME(3)  DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_im_configs_agent FOREIGN KEY (agent_id) REFERENCES agents(id)
 );
 
 CREATE TABLE conversations (
-  id                  TEXT PRIMARY KEY,
-  agent_id            TEXT NOT NULL REFERENCES agents(id),
-  channel_key         TEXT NOT NULL,
-  external_chat_id    TEXT NOT NULL,
-  external_thread_key TEXT NOT NULL DEFAULT '',
-  created_at          TIMESTAMPTZ DEFAULT now(),
-  last_message_at     TIMESTAMPTZ,
-  UNIQUE (channel_key, external_chat_id, external_thread_key)
+  id                  VARCHAR(191) NOT NULL PRIMARY KEY,
+  agent_id            VARCHAR(191) NOT NULL,
+  channel_key         VARCHAR(191) NOT NULL,
+  external_chat_id    VARCHAR(191) NOT NULL,
+  external_thread_key VARCHAR(191) NOT NULL DEFAULT '',
+  created_at          DATETIME(3)  DEFAULT CURRENT_TIMESTAMP(3),
+  last_message_at     DATETIME(3),
+  UNIQUE (channel_key, external_chat_id, external_thread_key),
+  CONSTRAINT fk_conversations_agent FOREIGN KEY (agent_id) REFERENCES agents(id)
 );
 
 CREATE TABLE messages (
-  id                  TEXT PRIMARY KEY,
-  conversation_id     TEXT NOT NULL REFERENCES conversations(id),
-  role                TEXT NOT NULL CHECK (role IN ('user','assistant','system','tool')),
-  content_json        JSONB NOT NULL,
-  source              TEXT NOT NULL CHECK (source IN ('im','sandbox')),
-  external_message_id TEXT,
-  metadata_json       JSONB DEFAULT '{}',
-  created_at          TIMESTAMPTZ DEFAULT now()
+  id                  VARCHAR(191) NOT NULL PRIMARY KEY,
+  conversation_id     VARCHAR(191) NOT NULL,
+  role                VARCHAR(191) NOT NULL,
+  content_json        JSON         NOT NULL,
+  source              VARCHAR(191) NOT NULL,
+  external_message_id VARCHAR(191),
+  metadata_json       JSON         DEFAULT (JSON_OBJECT()),
+  created_at          DATETIME(3)  DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
 
 CREATE TABLE inbound_jobs (
-  id                  TEXT PRIMARY KEY,
-  channel_key         TEXT NOT NULL,
-  external_message_id TEXT NOT NULL,
-  conversation_id     TEXT NOT NULL REFERENCES conversations(id),
-  status              TEXT NOT NULL CHECK (status IN ('pending','processing','done','failed')),
-  lease_owner         TEXT,
-  lease_expires_at    TIMESTAMPTZ,
-  received_at         TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (channel_key, external_message_id)
+  id                  VARCHAR(191) NOT NULL PRIMARY KEY,
+  channel_key         VARCHAR(191) NOT NULL,
+  external_message_id VARCHAR(191) NOT NULL,
+  conversation_id     VARCHAR(191) NOT NULL,
+  status              VARCHAR(191) NOT NULL,
+  lease_owner         VARCHAR(191),
+  lease_expires_at    DATETIME(3),
+  received_at         DATETIME(3)  DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE (channel_key, external_message_id),
+  CONSTRAINT fk_inbound_jobs_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
 
-CREATE INDEX idx_inbound_jobs_recovery ON inbound_jobs (status, lease_expires_at)
-  WHERE status = 'processing';
+CREATE INDEX idx_inbound_jobs_recovery ON inbound_jobs (status, lease_expires_at);
