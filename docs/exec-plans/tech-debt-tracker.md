@@ -42,12 +42,16 @@ Known issues and deferred work. Each item includes context so future agents can 
 
 ---
 
+<!-- DOC-GARDENING-CHANGE: 2026-04-16
+  - Updated TD-005: demo-agent rewritten from Python to TypeScript using agent-sdk. The SDK supports configurable systemPrompt via createAgent() parameter, but demo-agent/src/agent.ts still has hardcoded prompt. Partially resolved.
+-->
 ### [TD-005] `demo-agent` system prompt is hardcoded
 
-**Location:** `packages/demo-agent/app.py:5`
-**Impact:** Low — the system prompt `"You are a helpful assistant."` cannot be configured per-agent without modifying the template.
+**Location:** `packages/demo-agent/src/agent.ts`
+**Impact:** Low — the system prompt `"You are a helpful assistant."` cannot be configured per-agent without modifying the code.
 **Why deferred:** MVP uses a single agent.
 **Resolution path:** Pass system prompt via env var set at sandbox start time in `sandbox.ts`.
+**Status update:** Demo-agent was rewritten in TypeScript using agent-sdk (2026-04-15). The SDK's `createAgent()` accepts `systemPrompt` as a parameter, so the framework now supports configuration. However, demo-agent still hardcodes the prompt.
 
 ---
 

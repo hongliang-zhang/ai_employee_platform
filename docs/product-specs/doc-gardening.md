@@ -1,7 +1,10 @@
 # Doc Gardening — 自动化文档清理 Agent
 
+<!-- DOC-GARDENING-CHANGE: 2026-04-16
+  - Updated status from 草稿 to Completed: All components implemented (scripts/doc-gardening/run.ts exists, .doc-gardening-prompt.md exists, CI job exists in .gitlab-ci.yml)
+-->
 **日期：** 2026-04-14
-**状态：** 草稿
+**状态：** Completed
 **灵感来源：** [Harness engineering: leveraging Codex in an agent-first world](https://openai.com/index/harness-engineering/) — "doc-gardening agent" 与 "entropy and garbage collection" 章节
 
 ---

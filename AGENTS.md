@@ -10,11 +10,16 @@ Current state: **MVP** — single-agent, Telegram only, internal use.
 
 ## Repository layout
 
+<!-- DOC-GARDENING-CHANGE: 2026-04-16
+  - Added agent-sdk to repository layout: The packages/ directory contains agent-sdk which was not listed
+-->
+<!-- DOC-GARDENING-FLAG: Database provider inconsistency detected. AGENTS.md and .env.example mention PostgreSQL/Supabase, but schema.prisma declares `provider = "mysql"` and migrations use MySQL/TiDB syntax. Cannot determine which is correct without human confirmation. -->
 ```
 z-mono/
   packages/
     gateway/      # Trusted service: message history + LLM proxy (Node.js/Express)
     dispatcher/   # Telegram polling + sandbox lifecycle management (Node.js)
+    agent-sdk/    # Agent SDK for building agents that run on the AaaS harness (Node.js/Express)
     demo-agent/   # Reference agent runtime packaged as e2b template (Python/Flask)
     db/           # Database package with Prisma schema and migrations
   scripts/        # setup.ts + doc-gardening automation
