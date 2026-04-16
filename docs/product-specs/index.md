@@ -13,3 +13,4 @@
 | [2026-04-14-doc-gardening-prompt-design.md](./2026-04-14-doc-gardening-prompt-design.md) | Draft | Doc-gardening prompt optimization design: verification table + done detection rules |
 | [2026-04-15-feishu-gateway-design.md](./2026-04-15-feishu-gateway-design.md) | Completed | 飞书（Feishu/Lark）WebSocket 长连接接入设计 (2026-04-15) |
 | [2026-04-15-agent-sdk-design.md](./2026-04-15-agent-sdk-design.md) | Completed | Agent SDK 设计：`@aaas/agent-sdk` 让开发者一行 `createAgent()` 部署到 AaaS harness (2026-04-15) |
+| [2026-04-16-doc-gardening-prompt-redesign.md](./2026-04-16-doc-gardening-prompt-redesign.md) | Draft | Doc-gardening prompt 重设计：从步骤驱动改为目标驱动 (2026-04-16) |
