@@ -13,7 +13,7 @@ function renderTemplate(content: string, vars: Record<string, string>): string {
 function main() {
   const name = process.argv[2]
   if (!name) {
-    console.error('Usage: npx @aaas/agent-sdk init <project-name>')
+    console.error('Usage: npx @alexlikevibe/agent-sdk init <project-name>')
     process.exit(1)
   }
 

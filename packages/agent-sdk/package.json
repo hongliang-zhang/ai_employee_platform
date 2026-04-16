@@ -1,6 +1,6 @@
 {
-  "name": "@aaas/agent-sdk",
-  "version": "0.1.0",
+  "name": "@alexlikevibe/agent-sdk",
+  "version": "0.1.1",
   "description": "AaaS Agent SDK — build agents that run on the AaaS harness",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "clean": "shx rm -rf dist",
-    "build": "tsc -p tsconfig.build.json && shx cp -r src/cli/templates dist/cli/templates",
+    "build": "tsc -p tsconfig.build.json && shx mkdir -p dist/cli/templates && shx cp src/cli/templates/* dist/cli/templates/",
     "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "test": "vitest --run",
     "prepublishOnly": "pnpm clean && pnpm build"
@@ -40,5 +40,8 @@
   "engines": {
     "node": ">=22"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }

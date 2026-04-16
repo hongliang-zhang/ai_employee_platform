@@ -8,13 +8,11 @@ import {
 } from '@mariozechner/pi-coding-agent'
 import express, { type Application } from 'express'
 import { join } from 'path'
-import pino from 'pino'
 import { createGatewayLlmProvider } from './gateway-llm-adapter.js'
 import type { Model } from '@mariozechner/pi-ai'
 import type { GatewayClient } from './gateway-client.js'
 import type { ResolvedConfig, SandboxConfig } from './environment.js'
-
-const logger = pino({ transport: { target: 'pino-pretty' } })
+import { logger } from './logger.js'
 
 export interface HarnessServerOptions {
   systemPrompt: string

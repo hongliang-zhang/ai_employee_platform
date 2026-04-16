@@ -1,4 +1,3 @@
-import pino from 'pino'
 import type {
   Api,
   ApiProvider,
@@ -8,8 +7,7 @@ import type {
   Provider,
   SimpleStreamOptions,
 } from '@mariozechner/pi-ai'
-
-const logger = pino({ transport: { target: 'pino-pretty' } })
+import { logger } from './logger.js'
 
 const GATEWAY_PROVIDER = 'gateway' as const
 const GATEWAY_LLM_API = 'gateway-llm' as const

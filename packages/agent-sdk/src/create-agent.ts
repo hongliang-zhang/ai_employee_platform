@@ -1,12 +1,10 @@
 import { createServer } from 'http'
-import pino from 'pino'
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent'
 import { resolveConfig } from './environment.js'
 import { FileSync } from './file-sync.js'
 import { GatewayClient } from './gateway-client.js'
 import { createHarnessApp } from './harness-server.js'
-
-const logger = pino({ transport: { target: 'pino-pretty' } })
+import { logger } from './logger.js'
 
 export interface CreateAgentOptions {
   /** System prompt for the agent */

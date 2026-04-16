@@ -36,7 +36,7 @@ Edit `.env` and fill in:
 | `HTTPS_PROXY` / `HTTP_PROXY` | Your local proxy, e.g. `http://127.0.0.1:7890` — required in China to reach Telegram API |
 | `GATEWAY_URL` | Your public tunnel URL, e.g. `https://gateway.iefnaf.cc` |
 | `E2B_API_KEY` | e2b.dev dashboard |
-| `E2B_TEMPLATE_ID` | e2b.dev dashboard |
+| `E2B_TEMPLATE_ID` | e2b.dev dashboard — see also [Building the e2b template](#building-the-e2b-template) |
 
 > **Password with special characters:** If your Supabase password contains `@` or other URL-special characters, URL-encode them (e.g. `@` → `%40`) inside the connection strings.
 
@@ -171,6 +171,72 @@ If the symlink is missing:
 ```bash
 ln -s ../../.env packages/db/.env
 ```
+
+### Building the e2b template
+
+#### Overview
+
+The `demo-agent` package is deployed as an e2b sandbox template. Building and pushing the template is done with the e2b CLI from `packages/demo-agent/`.
+
+```bash
+# 1. Rebuild agent-sdk (demo-agent depends on it)
+pnpm --filter @aaas/agent-sdk build
+
+# 2. Bundle demo-agent into a self-contained file
+#    (esbuild inlines all dependencies, including agent-sdk)
+cd packages/demo-agent
+npx esbuild src/agent.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/agent.js
+
+# 3. Push to e2b (--no-cache ensures latest code is used)
+HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 \
+  e2b template build --name demo-agent --no-cache
+```
+
+After a successful build, update `E2B_TEMPLATE_ID` in `.env` with the new template ID printed in the output (also recorded in `packages/demo-agent/e2b.toml`).
+
+#### Why esbuild instead of tsc?
+
+`demo-agent` depends on `@aaas/agent-sdk` via `workspace:*`. This works fine in the monorepo but fails inside a Docker container — `npm install` cannot resolve workspace references. The solution is to bundle everything into a single self-contained `dist/agent.js` with esbuild before building the Docker image. The `e2b.Dockerfile` then just copies that one file.
+
+#### Why HTTPS_PROXY is required
+
+The e2b CLI (v1) builds Docker images locally using Docker BuildKit. In China, Docker BuildKit's internal network does not automatically inherit macOS system proxy settings — even if your VPN is active. You must pass the proxy explicitly via environment variables so BuildKit can reach Docker Hub to pull the `node:20-slim` base image.
+
+Alternatively, configure Docker Desktop directly: **Settings → Resources → Proxies → Manual proxy configuration** → set both HTTP and HTTPS to `http://127.0.0.1:7890`.
+
+#### Why --no-cache
+
+Without `--no-cache`, Docker may reuse a cached layer for `COPY dist/agent.js` even if the file has changed (BuildKit caches based on file content hash, so in practice this is safe — but `--no-cache` makes it explicit and avoids any doubt).
+
+#### Verifying the build
+
+Start a temporary sandbox and confirm the latest code is present:
+
+```bash
+E2B_API_KEY=<your_key> node --input-type=module << 'EOF'
+import { Sandbox } from 'e2b'
+const sbx = await Sandbox.create('demo-agent', { timeoutMs: 30000 })
+const r = await sbx.commands.run('grep -o "You are a helpful assistant" /app/dist/agent.js | head -1')
+console.log('systemPrompt:', r.stdout.trim())
+const s = await sbx.commands.run('ls -lh /app/dist/agent.js')
+console.log('file:', s.stdout.trim())
+await sbx.kill()
+EOF
+```
+
+#### Template ID changed?
+
+If you see `404: Template not found` when building, the template ID in `e2b.toml` no longer exists in your e2b account (e.g. after switching accounts or team). Fix:
+
+```bash
+# Remove the stale template_id so e2b creates a fresh one
+# Edit packages/demo-agent/e2b.toml and delete the template_id line, then:
+e2b template build --name demo-agent --no-cache
+```
+
+The new template ID will be written back to `e2b.toml` automatically. Update `E2B_TEMPLATE_ID` in `.env` accordingly.
+
+---
 
 ### Node version errors from Prisma
 

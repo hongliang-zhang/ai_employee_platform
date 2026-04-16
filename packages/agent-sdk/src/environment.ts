@@ -1,6 +1,4 @@
-import pino from 'pino'
-
-const logger = pino({ transport: { target: 'pino-pretty' } })
+import { logger } from './logger.js'
 
 export type Environment = 'sandbox' | 'local'
 

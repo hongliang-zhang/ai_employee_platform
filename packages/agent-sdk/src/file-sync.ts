@@ -1,9 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { join, relative } from 'path'
-import pino from 'pino'
 import type { GatewayClient } from './gateway-client.js'
-
-const logger = pino({ transport: { target: 'pino-pretty' } })
+import { logger } from './logger.js'
 const POLL_INTERVAL_MS = 10_000
 
 export class FileSync {
