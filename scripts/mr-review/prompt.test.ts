@@ -24,6 +24,7 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('/home/user/review.json')
     expect(prompt).toContain('"comments"')
     expect(prompt).toContain('"summary"')
+    expect(prompt).toContain('json.dump') // Python-based output to avoid raw newlines in JSON
   })
 
   it('contains the diff content', () => {

@@ -25,10 +25,33 @@ interface ReviewOutput {
   summary: string
 }
 
+function extractJson(raw: string): string {
+  // Try direct parse first
+  const trimmed = raw.trim()
+  if (trimmed.startsWith('{')) return trimmed
+
+  // Find first { ... } block spanning the whole content
+  const start = raw.indexOf('{')
+  if (start === -1) return raw
+
+  // Walk to find matching closing brace
+  let depth = 0
+  let end = -1
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === '{') depth++
+    else if (raw[i] === '}') {
+      depth--
+      if (depth === 0) { end = i; break }
+    }
+  }
+  return end !== -1 ? raw.slice(start, end + 1) : raw
+}
+
 function parseReviewOutput(raw: string): ReviewOutput {
+  const jsonStr = extractJson(raw)
   let parsed: unknown
   try {
-    parsed = JSON.parse(raw)
+    parsed = JSON.parse(jsonStr)
   } catch {
     throw new Error(`Claude output is not valid JSON:\n${raw.slice(0, 500)}`)
   }
