@@ -32,7 +32,7 @@ export function loadConfig(
     gitlabProjectId: env.GITLAB_PROJECT_ID!,
     gitlabUrl: env.GITLAB_URL ?? 'https://gitlab.com',
     mrIid: env.MR_IID!,
-    sandboxTimeoutMs: Number(env.SANDBOX_TIMEOUT_MS) || 20 * 60 * 1000,
+    sandboxTimeoutMs: Number(env.SANDBOX_TIMEOUT_MS) || 20 * 60 * 1000, // shorter than doc-gardening; review is read-only
     claudeTimeoutMs: Number(env.CLAUDE_TIMEOUT_MS) || 15 * 60 * 1000,
   }
 }

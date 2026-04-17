@@ -25,11 +25,14 @@ describe('loadConfig', () => {
     expect(config.gitlabUrl).toBe('https://dev.aminer.cn')
   })
 
-  it('throws when a required var is missing', () => {
+  it('throws listing all missing var names when none are set', () => {
     expect(() => loadConfig({})).toThrow('Missing required env vars')
+    expect(() => loadConfig({})).toThrow('ZHIPU_API_KEY')
   })
 
-  it('each missing var name appears in the error', () => {
-    expect(() => loadConfig({})).toThrow('ZHIPU_API_KEY')
+  it('throws listing only the missing var when one is missing', () => {
+    const { MR_IID: _, ...withoutMrIid } = REQUIRED_ENV
+    expect(() => loadConfig(withoutMrIid)).toThrow('MR_IID')
+    expect(() => loadConfig(withoutMrIid)).not.toThrow('ZHIPU_API_KEY')
   })
 })
