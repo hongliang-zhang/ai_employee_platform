@@ -46,10 +46,23 @@ scripts/
 
 ### Shared Patterns with doc-gardening
 
-- `SandboxLike` interface（可直接从 `doc-gardening/run.ts` 复用或提取到 shared 位置）
+- `SandboxLike` interface — **extended** to include `files.read(path: string): Promise<string>` (doc-gardening only uses `commands` + `kill`; mr-review also needs to read output files from sandbox)
 - Dependency injection via `RunDeps` (makes unit testing possible without real e2b/GitLab)
 - `loadConfig` pattern with explicit required vars
 - Same e2b `claude` template, same `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL` envs
+
+**Extended `SandboxLike` interface for mr-review:**
+```ts
+interface SandboxLike {
+  commands: {
+    run: (cmd: string, opts?: { timeoutMs?: number; onStdout?: (d: string) => void; onStderr?: (d: string) => void }) => Promise<{ stdout: string; stderr: string; exitCode: number }>
+  }
+  files: {
+    read: (path: string) => Promise<string>
+  }
+  kill: () => Promise<void>
+}
+```
 
 ---
 
@@ -124,6 +137,15 @@ Claude writes `/home/user/review.json` as output.
 
 CI runner reads `review.json` from sandbox via `sandbox.files.read('/home/user/review.json')` (e2b Files API). Parses and validates JSON shape before proceeding.
 
+Expected shape validation:
+```ts
+interface ReviewOutput {
+  comments: Array<{ path: string; line: number; side: 'RIGHT' | 'LEFT'; body: string }>
+  summary: string
+}
+```
+If parsing fails or shape is invalid, sandbox is killed (in `finally` block) and the CI job throws with the raw output printed.
+
 ### Step 5 — Publish comments (CI runner)
 
 **Inline comments** — one `POST /discussions` per entry in `comments[]`:
@@ -151,7 +173,7 @@ CI runner reads `review.json` from sandbox via `sandbox.files.read('/home/user/r
 | Failure | Behavior |
 |---------|----------|
 | Individual inline comment fails (e.g., line out of range) | Skip that comment, continue posting remaining. Note count of skipped in summary. |
-| Claude outputs invalid JSON | CI job fails, prints raw output. No comments posted. |
+| Claude outputs invalid JSON | Sandbox killed (finally block), CI job fails, prints raw output. No comments posted. |
 | e2b sandbox timeout | CI job fails. Other CI jobs (lint/test) unaffected. |
 | GitLab API error on summary comment | CI job fails with error message. |
 
@@ -196,5 +218,5 @@ All secrets already exist in CI from doc-gardening — no new secrets needed.
 
 - **Unit tests** (`run.test.ts`, `gitlab.test.ts`, `config.test.ts`) — use dependency injection to mock e2b sandbox and GitLab API calls, same pattern as doc-gardening tests
 - **`SandboxLike` mock** — implement `files.read` mock in addition to `commands.run`
-- **Prompt snapshot test** — verify `buildPrompt()` output contains required sections
+- **Prompt snapshot test** — verify `buildPrompt(diff: string): string` output contains required sections (架构约定、输出格式、diff 内容)
 - No integration tests (e2b + GitLab API calls are mocked in all tests)
