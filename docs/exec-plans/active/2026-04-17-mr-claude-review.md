@@ -746,7 +746,7 @@ describe('runMrReview', () => {
 
     expect(sandbox.files.read).toHaveBeenCalledWith('/home/user/review.json')
     expect(postComments).toHaveBeenCalledWith(
-      expect.objectContaining({ mrIid: '42' || '7' }),
+      expect.objectContaining({ mrIid: '7' }),
       expect.objectContaining({ baseSha: 'b' }),
       expect.arrayContaining([expect.objectContaining({ path: 'src/foo.ts' })]),
       '整体不错',
