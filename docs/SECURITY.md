@@ -1,5 +1,9 @@
 # Security Model
 
+<!-- DOC-GARDENING-CHANGE: 2026-04-17
+  - Updated bot token storage section to reflect multi-provider design (credentials_enc instead of bot_token_enc)
+-->
+
 ## Trust zones
 
 ```
@@ -32,7 +36,7 @@ This prevents a sandbox from injecting messages that appear to come from the use
 
 ## Bot token storage
 
-Telegram bot tokens are stored encrypted at rest in `im_configs.bot_token_enc` using AES-256 (via `BOT_TOKEN_ENC_KEY`). The plaintext token is decrypted in dispatcher memory at startup and never logged.
+IM provider credentials (Telegram bot tokens, Feishu app_id/app_secret) are stored encrypted at rest in `im_configs.credentials_enc` using AES-256 (via `BOT_TOKEN_ENC_KEY`). The plaintext credentials are decrypted in dispatcher memory at startup and never logged.
 
 ## What is NOT protected (known gaps)
 

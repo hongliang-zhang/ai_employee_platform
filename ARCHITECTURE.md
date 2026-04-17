@@ -2,6 +2,13 @@
 
 > Top-level map of z-mono's domain structure, service boundaries, and key design decisions. For deeper design rationale see [docs/design-docs/core-beliefs.md](./docs/design-docs/core-beliefs.md).
 
+<!-- DOC-GARDENING-CHANGE: 2026-04-17
+  - Added users table to Key tables list
+  - Fixed database reference: PostgreSQL → MySQL (matches schema.prisma provider)
+  - Updated im_configs description: "bot token encrypted" → "credentials encrypted" (matches multi-provider design)
+  - Clarified persistent file storage status: gateway routes implemented, sandbox daemon not yet implemented
+-->
+
 ## System topology
 
 ```
@@ -18,7 +25,7 @@ Telegram
 │        │ e2b SDK                        │            │
 └────────┼────────────────────────────────┼────────────┘
          │                                │
-         ▼                                ├──▶ PostgreSQL
+         ▼                                ├──▶ MySQL
   ┌─────────────┐                         ├──▶ LLM API (z.ai/glm-5.1)
   │ demo-agent  │  JWT-signed requests    │
   │ Python/Flask│ ───────────────────────▶┘
@@ -73,8 +80,9 @@ Key tables:
 
 | Table | Purpose |
 |-------|---------|
+| `users` | Platform users (not yet wired up in MVP) |
 | `agents` | Agent definitions (e2b template, port, idle timeout) |
-| `im_configs` | IM channel config per agent (bot token encrypted at rest) |
+| `im_configs` | IM channel config per agent (credentials encrypted at rest) |
 | `conversations` | One row per (channel_key, external_chat_id, thread) |
 | `messages` | Full conversation history (role, content_json, source) |
 | `inbound_jobs` | Dedup + at-least-once processing with lease-based recovery |
@@ -92,9 +100,9 @@ All gateway requests require a JWT signed with `JWT_SECRET`.
 
 ## Persistent file storage
 
-Sandbox agents can read and write files in `/persistent/` inside the sandbox. A background daemon (`file_sync.py`) syncs these files to S3-compatible storage via presigned URLs issued by gateway. The sandbox never holds S3 credentials.
+Gateway provides presigned S3 URLs via `/gateway/storage/presign` and `/gateway/storage/list` routes, scoped to the requesting agent/conversation. The sandbox side file sync daemon is not yet implemented.
 
-Storage layout: `agents/{agent_id}/shared/` (cross-conversation) and `agents/{agent_id}/conversations/{conv_id}/` (conversation-scoped). See `docs/product-specs/sandbox-persistent-storage.md` for full design.
+Planned storage layout: `agents/{agent_id}/shared/` (cross-conversation) and `agents/{agent_id}/conversations/{conv_id}/` (conversation-scoped). See `docs/product-specs/sandbox-persistent-storage.md` for full design.
 
 ## Optimistic concurrency on message history
 
