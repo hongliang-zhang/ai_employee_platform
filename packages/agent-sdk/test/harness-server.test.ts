@@ -31,16 +31,19 @@ describe('HarnessServer', () => {
     expect(res.body).toEqual({ ok: true })
   })
 
-  it('POST /chat with missing message returns 400', async () => {
+  it('POST /chat with missing message returns 400 after initSession is ready', async () => {
     const app = await createHarnessApp({
       systemPrompt: 'test',
       config: { mode: 'local', port: 8080 },
     })
+    app.locals.sessionReady = false
+    app.locals.fileSyncReady = true // local mode: no file sync needed
+    await app.locals.initSession()
     const res = await request(app).post('/chat').send({})
     expect(res.status).toBe(400)
   })
 
-  it('POST /chat returns reply from agent_end event', async () => {
+  it('POST /chat returns reply from agent_end event after initSession is ready', async () => {
     const { createAgentSession } = await import('@mariozechner/pi-coding-agent')
     const mockSession = {
       prompt: vi.fn().mockResolvedValue(undefined),
@@ -67,6 +70,9 @@ describe('HarnessServer', () => {
       systemPrompt: 'test',
       config: { mode: 'local', port: 8080 },
     })
+    app.locals.sessionReady = false
+    app.locals.fileSyncReady = true // local mode: no file sync needed
+    await app.locals.initSession()
     const res = await request(app).post('/chat').send({ message: 'hi' })
     expect(res.status).toBe(200)
     expect(res.body.reply).toBe('Hello!')

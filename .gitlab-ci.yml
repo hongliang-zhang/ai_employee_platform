@@ -73,3 +73,17 @@ doc-gardening:
   script:
     - pnpm tsx scripts/doc-gardening/run.ts
   timeout: 35m
+
+# MR Claude Code Review: runs on every MR open/update in e2b sandbox
+# allow_failure: true — review is advisory, must not block MR merges
+mr-review:
+  extends: .pnpm_setup
+  stage: validate
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true
+  timeout: 20m
+  variables:
+    MR_IID: $CI_MERGE_REQUEST_IID
+  script:
+    - pnpm tsx scripts/mr-review/run.ts
