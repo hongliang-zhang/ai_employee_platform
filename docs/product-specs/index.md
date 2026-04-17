@@ -3,6 +3,9 @@
   - Updated 2026-04-15-feishu-gateway-design.md status: Active → Completed (feishu client exists, migration applied)
   - Updated 2026-04-15-agent-sdk-design.md status: Active → Completed (SDK fully implemented)
 -->
+<!-- DOC-GARDENING-CHANGE: 2026-04-17
+  - Updated 2026-04-17-mr-claude-review-design.md status: Active → Completed (exec plan implemented, CI job active)
+-->
 # Product Specs Index
 
 | Document | Status | Description |
@@ -14,4 +17,4 @@
 | [2026-04-15-feishu-gateway-design.md](./2026-04-15-feishu-gateway-design.md) | Completed | 飞书（Feishu/Lark）WebSocket 长连接接入设计 (2026-04-15) |
 | [2026-04-15-agent-sdk-design.md](./2026-04-15-agent-sdk-design.md) | Completed | Agent SDK 设计：`@aaas/agent-sdk` 让开发者一行 `createAgent()` 部署到 AaaS harness (2026-04-15) |
 | [2026-04-16-doc-gardening-prompt-redesign.md](./2026-04-16-doc-gardening-prompt-redesign.md) | Draft | Doc-gardening prompt 重设计：从步骤驱动改为目标驱动 (2026-04-16) |
-| [2026-04-17-mr-claude-review-design.md](./2026-04-17-mr-claude-review-design.md) | Active | MR Claude Code Review：MR 创建/更新时在 e2b sandbox 中自动触发 Claude inline code review (2026-04-17) |
+| [2026-04-17-mr-claude-review-design.md](./2026-04-17-mr-claude-review-design.md) | Completed | MR Claude Code Review：MR 创建/更新时在 e2b sandbox 中自动触发 Claude inline code review (2026-04-17) |
