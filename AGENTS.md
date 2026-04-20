@@ -72,6 +72,11 @@ pnpm --filter @aaas/gateway test
 pnpm --filter @aaas/dispatcher test
 ```
 
+## Git workflow
+
+- **Remote GitLab**: `dev.aminer.cn` — direct pushes to `master` are blocked; all changes merge via MR
+- **Use `glab` CLI** for GitLab operations (MR, pipelines, etc.) — auth already configured
+
 ## Agent operating principles
 
 - **All knowledge lives in the repo.** Decisions made in chat or docs outside this repo do not exist to you. If something is architecturally important, encode it here.
