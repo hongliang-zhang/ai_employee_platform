@@ -17,7 +17,7 @@ export function createS3Service(config: S3Config) {
       accessKeyId: config.accessKey,
       secretAccessKey: config.secretKey,
     },
-    forcePathStyle: true, // required for some S3-compatible providers
+    // COS requires virtual-hosted style; R2 supports both. Default (false) works for all current providers.
   })
 
   return {
