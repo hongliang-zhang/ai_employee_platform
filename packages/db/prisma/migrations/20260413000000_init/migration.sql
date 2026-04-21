@@ -1,4 +1,6 @@
--- migrations/001_initial.sql (MySQL/TiDB)
+-- migrations/001_initial.sql (MySQL/TDSQL RocksDB)
+-- No FOREIGN KEY constraints: TDSQL RocksDB engine does not support them.
+-- Referential integrity is enforced at the application layer.
 
 CREATE TABLE users (
   id          VARCHAR(191) NOT NULL PRIMARY KEY,
@@ -26,7 +28,7 @@ CREATE TABLE im_configs (
   lease_owner      VARCHAR(191),
   lease_expires_at DATETIME(3),
   created_at       DATETIME(3)  DEFAULT CURRENT_TIMESTAMP(3),
-  CONSTRAINT fk_im_configs_agent FOREIGN KEY (agent_id) REFERENCES agents(id)
+  INDEX im_configs_agent_id_idx (agent_id)
 );
 
 CREATE TABLE conversations (
@@ -38,7 +40,7 @@ CREATE TABLE conversations (
   created_at          DATETIME(3)  DEFAULT CURRENT_TIMESTAMP(3),
   last_message_at     DATETIME(3),
   UNIQUE (channel_key, external_chat_id, external_thread_key),
-  CONSTRAINT fk_conversations_agent FOREIGN KEY (agent_id) REFERENCES agents(id)
+  INDEX conversations_agent_id_idx (agent_id)
 );
 
 CREATE TABLE messages (
@@ -50,7 +52,7 @@ CREATE TABLE messages (
   external_message_id VARCHAR(191),
   metadata_json       JSON         DEFAULT (JSON_OBJECT()),
   created_at          DATETIME(3)  DEFAULT CURRENT_TIMESTAMP(3),
-  CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+  INDEX messages_conversation_id_idx (conversation_id)
 );
 
 CREATE TABLE inbound_jobs (
@@ -63,7 +65,7 @@ CREATE TABLE inbound_jobs (
   lease_expires_at    DATETIME(3),
   received_at         DATETIME(3)  DEFAULT CURRENT_TIMESTAMP(3),
   UNIQUE (channel_key, external_message_id),
-  CONSTRAINT fk_inbound_jobs_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+  INDEX inbound_jobs_conversation_id_idx (conversation_id)
 );
 
 CREATE INDEX idx_inbound_jobs_recovery ON inbound_jobs (status, lease_expires_at);
