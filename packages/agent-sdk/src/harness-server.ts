@@ -96,9 +96,11 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
     app.locals.sessionReady = true
   }
 
-  // /health is always 200 — dispatcher polls this to detect agent startup.
-  // Returns OK as soon as the HTTP server is listening, before session init.
   app.get('/health', (_req, res) => {
+    if (!app.locals.sessionReady || !app.locals.fileSyncReady) {
+      res.status(503).json({ ok: false, reason: 'agent initializing' })
+      return
+    }
     res.json({ ok: true })
   })
 
@@ -113,10 +115,15 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
       return
     }
 
-    const { message } = req.body as { message?: string }
+    const { message, last_message_id } = req.body as { message?: string; last_message_id?: string }
     if (!message) {
       res.status(400).json({ error: 'missing message' })
       return
+    }
+
+    // Update local head from dispatcher before processing
+    if (last_message_id) {
+      lastMessageId = last_message_id
     }
 
     let lastReply = ''

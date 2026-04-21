@@ -18,14 +18,33 @@ vi.mock('@mariozechner/pi-coding-agent', () => ({
     create: vi.fn().mockReturnValue({}),
     inMemory: vi.fn().mockReturnValue({}),
   },
+  ModelRegistry: vi.fn().mockImplementation(() => ({
+    registerProvider: vi.fn(),
+  })),
+  AuthStorage: {
+    inMemory: vi.fn().mockReturnValue({}),
+  },
 }))
 
 describe('HarnessServer', () => {
-  it('GET /health returns { ok: true }', async () => {
+  it('GET /health returns 503 before session init completes', async () => {
     const app = await createHarnessApp({
       systemPrompt: 'test',
       config: { mode: 'local', port: 8080 },
     })
+    // Do NOT call initSession — sessionReady and fileSyncReady remain false
+    const res = await request(app).get('/health')
+    expect(res.status).toBe(503)
+    expect(res.body).toEqual({ ok: false, reason: 'agent initializing' })
+  })
+
+  it('GET /health returns { ok: true } after init', async () => {
+    const app = await createHarnessApp({
+      systemPrompt: 'test',
+      config: { mode: 'local', port: 8080 },
+    })
+    app.locals.sessionReady = true
+    app.locals.fileSyncReady = true
     const res = await request(app).get('/health')
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ ok: true })
@@ -76,5 +95,51 @@ describe('HarnessServer', () => {
     const res = await request(app).post('/chat').send({ message: 'hi' })
     expect(res.status).toBe(200)
     expect(res.body.reply).toBe('Hello!')
+  })
+
+  it('POST /chat accepts last_message_id and passes it to gateway.appendMessages', async () => {
+    const { createAgentSession } = await import('@mariozechner/pi-coding-agent')
+    const mockSession = {
+      prompt: vi.fn().mockResolvedValue(undefined),
+      subscribe: vi.fn((listener: any) => {
+        setTimeout(() => {
+          listener({
+            type: 'message_update',
+            message: { role: 'assistant', content: [{ type: 'text', text: 'Reply!' }] },
+          })
+          listener({ type: 'agent_end' })
+        }, 0)
+        return () => {}
+      }),
+      systemPrompt: '',
+      agent: { setSystemPrompt: vi.fn() },
+    }
+    vi.mocked(createAgentSession).mockResolvedValueOnce({
+      session: mockSession as any,
+      modelFallbackMessage: undefined,
+      extensionsResult: {} as any,
+    })
+
+    const mockGateway = {
+      appendMessages: vi.fn().mockResolvedValue({ last_message_id: 'msg_res' }),
+    }
+    const app = await createHarnessApp({
+      systemPrompt: 'test',
+      config: { mode: 'sandbox', port: 8080, gatewayUrl: 'http://gw', sessionToken: 'tok', persistentRoot: '/tmp' } as any,
+      gateway: mockGateway as any,
+    })
+    app.locals.sessionReady = false
+    app.locals.fileSyncReady = true
+    await app.locals.initSession()
+
+    const res = await request(app)
+      .post('/chat')
+      .send({ message: 'hi', last_message_id: 'msg_from_dispatcher' })
+
+    expect(res.status).toBe(200)
+    expect(mockGateway.appendMessages).toHaveBeenCalledWith(
+      'msg_from_dispatcher',
+      expect.arrayContaining([expect.objectContaining({ role: 'assistant' })])
+    )
   })
 })

@@ -84,7 +84,10 @@ export function createProcessor(deps: {
           const res = await fetch(`${entry.chatUrl}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Trace-Id': traceId },
-            body: JSON.stringify({ message: msg.content.text }),
+            body: JSON.stringify({
+              message: msg.content.text,
+              last_message_id: conversation.getLastMessageId(conversationId),
+            }),
             signal: AbortSignal.timeout(120_000),
           })
           if (!res.ok) {

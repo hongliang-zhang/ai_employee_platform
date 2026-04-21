@@ -47,6 +47,9 @@ describe('processor.handle', () => {
     mockConversation.upsert.mockResolvedValueOnce({ conversationId: 'conv_1', lastMessageId: null })
     mockJobs.tryInsert.mockResolvedValueOnce(true)
     mockGateway.appendMessages.mockResolvedValueOnce({ last_message_id: 'msg_1' })
+    mockConversation.getLastMessageId
+      .mockReturnValueOnce(null)         // before append: no prior messages
+      .mockReturnValueOnce('msg_1')      // before /chat: after setLastMessageId('msg_1')
     mockJwt.signSandboxToken.mockReturnValueOnce('sandbox-jwt')
     mockJwt.signDispatcherToken.mockReturnValueOnce('dispatcher-jwt')
     mockSandbox.getOrCreate.mockResolvedValueOnce({
@@ -65,6 +68,10 @@ describe('processor.handle', () => {
     expect(mockIm.sendMessage).toHaveBeenCalledWith('123', 'Hi!')
     expect(mockJobs.markDone).toHaveBeenCalledOnce()
     expect(mockConversation.setLastMessageId).toHaveBeenCalled()
+    // Verify /chat request carries last_message_id from the append result
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual(
+      expect.objectContaining({ last_message_id: 'msg_1' })
+    )
   })
 
   it('marks job failed and notifies user if sandbox creation throws', async () => {

@@ -12,6 +12,13 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('migrations')
   })
 
+  it('contains diff-only constraints', () => {
+    const prompt = buildPrompt(diff)
+    expect(prompt).toContain('只基于 diff')
+    expect(prompt).toContain('只报告确定存在的问题')
+    expect(prompt).toContain('没有问题就返回空 comments')
+  })
+
   it('contains review dimensions', () => {
     const prompt = buildPrompt(diff)
     expect(prompt).toContain('Bug')
