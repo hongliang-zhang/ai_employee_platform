@@ -1,3 +1,4 @@
+<!-- DOC-GARDENING-FLAG: Implementation divergence detected. This plan describes a Python file_sync.py for demo-agent, but the actual implementation is in TypeScript within agent-sdk (packages/agent-sdk/src/file-sync.ts). The gateway storage routes (/gateway/storage/presign and /gateway/storage/list) are implemented. The core functionality exists but the implementation path differs from this plan. Agent-sdk has FileSync class with init() and watch() methods. Re-evaluate whether this plan should be updated or closed. -->
 # Sandbox Persistent File Storage Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -256,11 +257,11 @@ export function createStorageRouter(s3: S3Service) {
     try {
       const s3Prefix = prefix === 'shared'
         ? `agents/${agent_id}/shared/`
-        : `agents/${agent_id}/conversations/${conversation_id}/`
+        : `agents/${agent_id}/conversations/${conversationId}/`
 
       const objects = await s3.listObjects(s3Prefix)
       const files = objects.map(obj => ({
-        path: stripS3Prefix(obj.key, agent_id, conversation_id, prefix),
+        path: stripS3Prefix(obj.key, agentId, conversationId, prefix),
         size: obj.size,
         last_modified: obj.lastModified,
       }))
@@ -828,6 +829,7 @@ git commit -m "feat(dispatcher): add file sync init + watch to sandbox startup"
 **Files:**
 - Modify: `.env.example`
 - Modify: `docs/product-specs/sandbox-persistent-storage.md` (mark as implemented)
+- Modify: `ARCHITECTURE.md` (document storage routes)
 
 - [ ] **Step 1: Add S3 env vars to .env.example**
 

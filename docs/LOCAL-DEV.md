@@ -1,5 +1,11 @@
 # Local Development Guide
 
+<!-- DOC-GARDENING-CHANGE: 2026-04-22
+  - Updated DATABASE_URL: PostgreSQL/Supabase → MySQL/TiDB to match .env.example and schema.prisma provider
+  - Removed DIRECT_URL reference (not in .env.example)
+  - Updated Supabase references to generic database references
+-->
+
 This guide covers how to run gateway and dispatcher locally for end-to-end testing.
 
 ---
@@ -28,8 +34,7 @@ Edit `.env` and fill in:
 
 | Variable | Where to get it |
 |----------|----------------|
-| `DATABASE_URL` | Supabase → Project Settings → Database → Connection string (pooler, port 6543) |
-| `DIRECT_URL` | Supabase → Project Settings → Database → Connection string (direct, port 5432) |
+| `DATABASE_URL` | MySQL/TiDB connection string (e.g., TiDB Cloud, AWS RDS, or local MySQL) |
 | `JWT_SECRET` | Generate: `openssl rand -hex 32` |
 | `LLM_API_KEY` | Your LLM provider API key |
 | `BOT_TOKEN_ENC_KEY` | Generate: `openssl rand -hex 32` — **this is an encryption key, not the bot token** |
@@ -38,7 +43,7 @@ Edit `.env` and fill in:
 | `E2B_API_KEY` | e2b.dev dashboard |
 | `E2B_TEMPLATE_ID` | e2b.dev dashboard — see also [Building the e2b template](#building-the-e2b-template) |
 
-> **Password with special characters:** If your Supabase password contains `@` or other URL-special characters, URL-encode them (e.g. `@` → `%40`) inside the connection strings.
+> **Password with special characters:** If your database password contains `@` or other URL-special characters, URL-encode them (e.g. `@` → `%40`) inside the connection string.
 
 ### 2. Install dependencies
 
@@ -52,7 +57,7 @@ pnpm install
 pnpm --filter @aaas/db migrate:deploy
 ```
 
-This pushes the schema to your Supabase instance via `DIRECT_URL`.
+This pushes the schema to your MySQL/TiDB instance.
 
 ### 4. Seed the database
 
@@ -73,7 +78,7 @@ Setup complete.
   channel_key: im:cfg_xxxx
 ```
 
-> **Note:** `setup` only needs to be run once per fresh database. Running it again creates a second agent — clean up duplicates via the Supabase dashboard if needed.
+> **Note:** `setup` only needs to be run once per fresh database. Running it again creates a second agent — clean up duplicates via the database dashboard if needed.
 
 ---
 
@@ -201,9 +206,9 @@ lsof -ti:3001 | xargs kill -9
 
 Then restart in separate terminal tabs as described above.
 
-### `DIRECT_URL` not found during `prisma generate`
+### `.env` symlink not found
 
-This is expected — `generate` doesn't need a database connection. The error only matters for `migrate:deploy`. Ensure `.env` is present at the repo root and `packages/db/.env` is a symlink pointing to it:
+Ensure `.env` is present at the repo root and `packages/db/.env` is a symlink pointing to it:
 
 ```bash
 ls -la packages/db/.env   # should show -> ../../.env
