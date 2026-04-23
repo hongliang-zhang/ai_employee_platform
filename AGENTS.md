@@ -42,6 +42,7 @@ z-mono/
 | Security model | [docs/SECURITY.md](./docs/SECURITY.md) |
 | Reliability + error handling | [docs/RELIABILITY.md](./docs/RELIABILITY.md) |
 | Local development setup | [docs/LOCAL-DEV.md](./docs/LOCAL-DEV.md) |
+| CLI tools available | [docs/references/cli-tools.md](./docs/references/cli-tools.md) |
 
 ## Key environment variables
 
@@ -75,7 +76,7 @@ pnpm --filter @aaas/dispatcher test
 ## Git workflow
 
 - **Remote GitLab**: `dev.aminer.cn` — direct pushes to `master` are blocked; all changes merge via MR
-- **Use `glab` CLI** for GitLab operations (MR, pipelines, etc.) — auth already configured
+- See [docs/references/cli-tools.md](./docs/references/cli-tools.md) for available CLI tools (`glab`, `ags`, etc.)
 
 ## Agent operating principles
 
