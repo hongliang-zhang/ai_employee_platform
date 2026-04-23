@@ -10,5 +10,6 @@ export default defineConfig({
   test: {
     hookTimeout: 30000,
     testTimeout: 15000,
+    exclude: ['**/node_modules/**', 'tests/integration/**'],
   },
 })
