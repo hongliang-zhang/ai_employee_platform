@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/agent.ts",
-    "start": "node dist/agent.js"
+    "start": "node dist/agent.js",
+    "docker:deploy": "bash deploy.sh"
   },
   "dependencies": {
     "@alexlikevibe/agent-sdk": "^0.1.3"
