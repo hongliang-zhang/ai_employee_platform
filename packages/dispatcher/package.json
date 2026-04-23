@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --env-file=../../.env --import=tsx --watch src/index.ts",
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run tests/integration"
   },
   "dependencies": {
     "@aaas/db": "workspace:*",
