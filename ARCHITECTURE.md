@@ -2,6 +2,9 @@
 
 > Top-level map of z-mono's domain structure, service boundaries, and key design decisions. For deeper design rationale see [docs/design-docs/core-beliefs.md](./docs/design-docs/core-beliefs.md).
 
+<!-- DOC-GARDENING-CHANGE: 2026-04-29
+  - Updated demo-agent description: Python/Flask → TypeScript/Express with agent-sdk
+-->
 <!-- DOC-GARDENING-CHANGE: 2026-04-17
   - Added users table to Key tables list
   - Fixed database reference: PostgreSQL → MySQL (matches schema.prisma provider)
@@ -28,7 +31,7 @@ Telegram
          ▼                                ├──▶ MySQL
   ┌─────────────┐                         ├──▶ LLM API (z.ai/glm-5.1)
   │ demo-agent  │  JWT-signed requests    │
-  │ Python/Flask│ ───────────────────────▶┘
+  │ TypeScript  │ ───────────────────────▶┘
   │ (e2b sandbox│
   └─────────────┘
 ```
@@ -65,12 +68,13 @@ Telegram
 
 **Responsibility:** Reference agent runtime, packaged as an e2b template.
 
-- Flask app listening on port 8080
-- On `POST /chat`: loads history from gateway → calls LLM via gateway → appends assistant reply → returns text
+- Built with `@alexlikevibe/agent-sdk` (TypeScript/Express)
+- Express app listening on port 8080
+- On `POST /chat` (handled by SDK): loads history from gateway → calls LLM via gateway → appends assistant reply → returns text
 - Holds no credentials; receives `SESSION_TOKEN` (JWT) and `SESSION_ID` via env vars at sandbox start
 - `SESSION_TOKEN` has `caller: 'sandbox'` claim, scoped to one conversation
 
-**Why Python/Flask (not Node.js):** Agent code is expected to use Python ML tooling. The demo-agent is a template for third-party agent developers; Python is the natural fit.
+**Why TypeScript/Express:** The agent-sdk provides a complete harness for building agents. Demo-agent uses the SDK's `createAgent()` API and is a template for third-party agent developers.
 
 ## Database schema
 
