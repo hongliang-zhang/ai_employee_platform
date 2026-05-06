@@ -22,3 +22,4 @@
 | [2026-04-16-doc-gardening-prompt-redesign.md](./2026-04-16-doc-gardening-prompt-redesign.md) | Draft | Doc-gardening prompt 重设计：从步骤驱动改为目标驱动 (2026-04-16) |
 | [2026-04-17-mr-claude-review-design.md](./2026-04-17-mr-claude-review-design.md) | Completed | MR Claude Code Review：MR 创建/更新时在 e2b sandbox 中自动触发 Claude inline code review (2026-04-17) |
 | [2026-04-21-fix-sandbox-ready-and-message-sync.md](./2026-04-21-fix-sandbox-ready-and-message-sync.md) | Completed | 修复 sandbox 就绪信号不匹配与 assistant 消息 stale_write (2026-04-21) |
+| [2026-04-21-tencent-sandbox-migration.md](./2026-04-21-tencent-sandbox-migration.md) | Active | 腾讯云沙箱迁移设计：从 e2b.dev 迁移到腾讯云 AGS (2026-04-21) |

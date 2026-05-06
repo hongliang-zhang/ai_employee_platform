@@ -78,28 +78,54 @@ export function createProcessor(deps: {
       let reply: string
       const dispatchStart = Date.now()
       try {
-        reply = await retryWithBackoff(async () => {
-          const entry = await sandbox.getOrCreate(conversationId, agent.e2bTemplateId, agent.port, sandboxToken, agent.idleTimeoutMs)
-          const chatStart = Date.now()
-          const res = await fetch(`${entry.chatUrl}/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Trace-Id': traceId },
-            body: JSON.stringify({
-              message: msg.content.text,
-              last_message_id: conversation.getLastMessageId(conversationId),
-            }),
-            signal: AbortSignal.timeout(120_000),
-          })
-          if (!res.ok) {
-            if (res.status >= 500) {
-              logger.warn({ event: 'sandbox.stale', trace_id: traceId, status: res.status })
-              await sandbox.destroy(conversationId)
+        reply = await (async () => {
+          let lastStaleError: Error | undefined
+
+          for (let sandboxAttempt = 0; sandboxAttempt < 2; sandboxAttempt++) {
+            const entry = await sandbox.getOrCreate(conversationId, agent.e2bTemplateId, agent.port, sandboxToken, agent.idleTimeoutMs)
+            let lastStatus = 0
+            let destroyedStaleSandbox = false
+
+            for (let chatAttempt = 0; chatAttempt < 6; chatAttempt++) {
+              const chatStart = Date.now()
+              const res = await fetch(`${entry.chatUrl}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Trace-Id': traceId },
+                body: JSON.stringify({
+                  message: msg.content.text,
+                  last_message_id: conversation.getLastMessageId(conversationId),
+                }),
+                signal: AbortSignal.timeout(120_000),
+              })
+              if (res.ok) {
+                logger.info({ event: 'sandbox.chat', trace_id: traceId, conversation_id: conversationId, duration_ms: Date.now() - chatStart })
+                return ((await res.json()) as any).reply as string
+              }
+              lastStatus = res.status
+              if (res.status === 503) {
+                logger.warn({ event: 'sandbox.initializing', trace_id: traceId, status: res.status, attempt: chatAttempt + 1 })
+                await new Promise(r => setTimeout(r, 1_000))
+                continue
+              }
+              if (res.status === 404 || res.status >= 500) {
+                logger.warn({ event: 'sandbox.stale', trace_id: traceId, status: res.status })
+                await sandbox.destroy(conversationId)
+                lastStaleError = new Error(`sandbox returned ${res.status}; destroyed stale sandbox`)
+                destroyedStaleSandbox = true
+                break
+              }
+              throw new Error(`sandbox returned ${res.status}`)
             }
-            throw new Error(`sandbox returned ${res.status}`)
+
+            if (destroyedStaleSandbox) continue
+
+            // 503 loop exhausted — sandbox is still initializing, not stale.
+            // Report directly to user instead of recreating a healthy sandbox.
+            throw new Error(`sandbox still initializing after retries (${lastStatus})`)
           }
-          logger.info({ event: 'sandbox.chat', trace_id: traceId, conversation_id: conversationId, duration_ms: Date.now() - chatStart })
-          return ((await res.json()) as any).reply as string
-        }, 2)
+
+          throw lastStaleError ?? new Error('sandbox stale retry exhausted')
+        })()
       } catch (err) {
         await fail('chat.error', err)
         return

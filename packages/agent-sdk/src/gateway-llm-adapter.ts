@@ -1,12 +1,13 @@
 import type {
   Api,
   ApiProvider,
-  AssistantMessage,
-  AssistantMessageEventStream,
+  AssistantMessage as PiAssistantMessage,
+  AssistantMessageEventStream as PiAssistantMessageEventStream,
   Context,
   Provider,
   SimpleStreamOptions,
 } from '@mariozechner/pi-ai'
+import { createAssistantMessageEventStream } from '@mariozechner/pi-ai'
 import { logger } from './logger.js'
 
 const GATEWAY_PROVIDER = 'gateway' as const
@@ -19,7 +20,7 @@ function makeAssistantMessage(
   outputTokens: number,
   stopReason: 'stop' | 'error' = 'stop',
   errorMessage?: string,
-): AssistantMessage {
+): PiAssistantMessage {
   const zeroUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }
   return {
     role: 'assistant',
@@ -31,7 +32,7 @@ function makeAssistantMessage(
     stopReason,
     errorMessage,
     timestamp: Date.now(),
-  } as AssistantMessage
+  } as PiAssistantMessage
 }
 
 export function createGatewayLlmProvider(
@@ -44,10 +45,14 @@ export function createGatewayLlmProvider(
     model: { id: string; api: string },
     context: Context,
     _options?: SimpleStreamOptions, // options ignored: gateway /llm is non-streaming
-  ): AssistantMessageEventStream {
-    return (async function* () {
+  ): PiAssistantMessageEventStream {
+    const stream = createAssistantMessageEventStream()
+
+    // Run async; push events into the AssistantMessageEventStream
+    // so agent-loop can call .result() to get the final message.
+    ;(async () => {
       const emptyPartial = makeAssistantMessage('', model.id, 0, 0)
-      yield { type: 'start' as const, partial: emptyPartial }
+      stream.push({ type: 'start', partial: emptyPartial })
 
       const messages = context.messages.map((m: any) => ({ role: m.role, content: m.content }))
 
@@ -61,7 +66,7 @@ export function createGatewayLlmProvider(
         const data = await res.json().catch(() => ({}))
         const errMsg = (data as any)?.error?.message ?? `http_${res.status}`
         const errMessage = makeAssistantMessage('', model.id, 0, 0, 'error', errMsg)
-        yield { type: 'error' as const, reason: 'error' as const, error: errMessage }
+        stream.push({ type: 'error', reason: 'error', error: errMessage })
         return
       }
 
@@ -79,11 +84,20 @@ export function createGatewayLlmProvider(
       }
 
       const partial = makeAssistantMessage(text, model.id, input_tokens, output_tokens)
-      yield { type: 'text_start' as const, contentIndex: 0, partial }
-      yield { type: 'text_delta' as const, contentIndex: 0, delta: text, partial }
-      yield { type: 'text_end' as const, contentIndex: 0, content: text, partial }
-      yield { type: 'done' as const, reason: 'stop' as const, message: partial }
-    })() as unknown as AssistantMessageEventStream
+      stream.push({ type: 'text_start', contentIndex: 0, partial })
+      stream.push({ type: 'text_delta', contentIndex: 0, delta: text, partial })
+      stream.push({ type: 'text_end', contentIndex: 0, content: text, partial })
+      stream.push({ type: 'done', reason: 'stop', message: partial })
+    })().catch((err) => {
+      logger.error({ event: 'gateway_llm.stream_error', error: String(err) })
+      const errMessage = makeAssistantMessage('', model.id, 0, 0, 'error', String(err))
+      // streamSimple returns the stream synchronously, so async failures must be
+      // propagated to callers through the stream's terminal error event. Rethrowing
+      // here would only create an unhandled rejection after the stream is returned.
+      stream.push({ type: 'error', reason: 'error', error: errMessage })
+    })
+
+    return stream
   }
 
   return {

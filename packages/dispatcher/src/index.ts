@@ -21,6 +21,7 @@ const BOT_TOKEN_ENC_KEY = process.env.BOT_TOKEN_ENC_KEY!
 const GATEWAY_URL = process.env.GATEWAY_URL!
 const GATEWAY_LOCAL_URL = process.env.GATEWAY_LOCAL_URL ?? 'http://localhost:3001'
 const E2B_API_KEY = process.env.E2B_API_KEY!
+const E2B_DOMAIN = process.env.E2B_DOMAIN  // 可选，腾讯云: ap-beijing.tencentags.com
 
 const INSTANCE_ID = process.env.POD_NAME ?? `dispatcher-${createId()}`
 
@@ -49,7 +50,7 @@ async function main() {
   const conversation = createConversationManager(db)
   const jobs = createInboundJobsManager(db, INSTANCE_ID)
   const gateway = createGatewayClient(GATEWAY_LOCAL_URL)
-  const sandbox = createSandboxOrchestrator({ e2bApiKey: E2B_API_KEY, gatewayUrl: GATEWAY_URL, instanceId: INSTANCE_ID })
+  const sandbox = createSandboxOrchestrator({ e2bApiKey: E2B_API_KEY, e2bDomain: E2B_DOMAIN, gatewayUrl: GATEWAY_URL, instanceId: INSTANCE_ID })
 
   logger.info({ event: 'dispatcher.start', provider: cfg.provider, agent_id: agent.id, instance_id: INSTANCE_ID })
 

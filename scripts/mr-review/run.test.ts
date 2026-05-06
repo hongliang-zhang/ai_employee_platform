@@ -127,4 +127,32 @@ describe('runMrReview', () => {
     expect(sandbox.kill).toHaveBeenCalledOnce()
     expect(postComments).not.toHaveBeenCalled()
   })
+
+  it('parses review JSON from stdout when file is not written', async () => {
+    const sandbox = createMockSandbox('')
+    // Claude outputs JSON to stdout but does NOT write review.json
+    sandbox.commands.run = vi.fn().mockResolvedValue({
+      stdout: VALID_REVIEW_JSON,
+      stderr: '',
+      exitCode: 0,
+    })
+    const createSandbox = vi.fn().mockResolvedValue(sandbox)
+    const fetchMr = vi.fn().mockResolvedValue({
+      diffs: [{ new_path: 'src/foo.ts', old_path: 'src/foo.ts', diff: '+x', new_file: false, deleted_file: false }],
+      baseSha: 'b', startSha: 's', headSha: 'h',
+    })
+    const postComments = vi.fn().mockResolvedValue({ posted: 1, skipped: 0 })
+
+    const result = await runMrReview(TEST_CONFIG, { createSandbox, fetchMr, postComments })
+
+    // Should NOT have read the file — stdout was sufficient
+    expect(sandbox.files.read).not.toHaveBeenCalled()
+    expect(postComments).toHaveBeenCalledWith(
+      expect.objectContaining({ mrIid: '7' }),
+      expect.objectContaining({ baseSha: 'b' }),
+      expect.arrayContaining([expect.objectContaining({ path: 'src/foo.ts' })]),
+      '整体不错',
+    )
+    expect(result.posted).toBe(1)
+  })
 })

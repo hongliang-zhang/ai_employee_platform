@@ -12,6 +12,7 @@ interface SandboxEntry {
 
 export function createSandboxOrchestrator(config: {
   e2bApiKey: string
+  e2bDomain?: string      // 新增：腾讯云 ap-beijing.tencentags.com，留空则用 SDK 默认 e2b.app
   gatewayUrl: string
   instanceId: string
 }) {
@@ -60,14 +61,18 @@ export function createSandboxOrchestrator(config: {
       // e2b API can have transient failures — retry up to 3 times
       const createStart = Date.now()
       const sandbox = await retryWithBackoff(() =>
-        Sandbox.create(templateId, { apiKey: config.e2bApiKey })
+        Sandbox.create(templateId, {
+          apiKey: config.e2bApiKey,
+          ...(config.e2bDomain && { domain: config.e2bDomain }),
+          secure: false,
+        })
       )
       const createMs = Date.now() - createStart
       logger.info({ event: 'sandbox.created', conversation_id: conversationId, sandbox_id: sandbox.sandboxId, duration_ms: createMs })
 
       const envPrefix = `GATEWAY_URL=${config.gatewayUrl} SESSION_TOKEN=${sessionToken} SESSION_ID=${conversationId}`
 
-      // Start Node.js agent (SDK handles file sync init, watch, and HTTP server internally)
+      // Start Node.js agent via envd (env vars injected into the process by envd)
       const agentStart = Date.now()
       await sandbox.commands.run(
         `nohup bash -c '${envPrefix} node /app/dist/agent.js' > /tmp/agent.log 2>&1 &`,
