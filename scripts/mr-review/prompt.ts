@@ -8,6 +8,7 @@ const PYTHON_EXAMPLE = [
   '}',
   "with open('/home/user/review.json', 'w') as f:",
   '    json.dump(result, f, ensure_ascii=False)',
+  'print(json.dumps(result, ensure_ascii=False))',
 ].join('\n')
 
 export function buildPrompt(diff: string): string {
@@ -39,7 +40,7 @@ export function buildPrompt(diff: string): string {
     '',
     '# 输出格式（严格遵守）',
     '',
-    '运行以下 Python 脚本将结果写入 /home/user/review.json：',
+    '运行以下 Python 脚本将结果写入 /home/user/review.json 并同时输出到 stdout：',
     '',
     PYTHON_EXAMPLE,
     '',

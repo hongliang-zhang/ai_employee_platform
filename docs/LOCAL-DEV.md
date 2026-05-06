@@ -16,7 +16,7 @@ This guide covers how to run gateway and dispatcher locally for end-to-end testi
 |------|---------|---------|
 | Node.js | 24+ | `nvm install 24 && nvm alias default 24` |
 | pnpm | any | `npm i -g pnpm` |
-| cloudflared | any | `brew install cloudflared` |
+| natapp | 3.x | `curl -fsSL "https://natapp.cn/get.sh?authtoken=<your-token>" \| sh` |
 
 > **Why Node 24?** Prisma 7 requires Node 20.19+, 22.12+, or 24+. Node 23 is not supported.
 
@@ -39,7 +39,7 @@ Edit `.env` and fill in:
 | `LLM_API_KEY` | Your LLM provider API key |
 | `BOT_TOKEN_ENC_KEY` | Generate: `openssl rand -hex 32` — **this is an encryption key, not the bot token** |
 | `HTTPS_PROXY` / `HTTP_PROXY` | Your local proxy, e.g. `http://127.0.0.1:7890` — required in China to reach Telegram API |
-| `GATEWAY_URL` | Your public tunnel URL, e.g. `https://gateway.iefnaf.cc` |
+| `GATEWAY_URL` | Your NATAPP public tunnel URL, e.g. `http://s46fa5d3.natappfree.cc` |
 | `E2B_API_KEY` | e2b.dev dashboard |
 | `E2B_TEMPLATE_ID` | e2b.dev dashboard — see also [Building the e2b template](#building-the-e2b-template) |
 
@@ -84,11 +84,42 @@ Setup complete.
 
 ## Starting services
 
-Open **three separate terminal tabs** and run one command per tab. This is important — do not use background processes, as it leads to zombie processes that compete for the same Telegram polling offset.
+Open **three separate terminal tabs** and run one command per tab. This is important — do not use background processes, as it leads to zombie processes that compete for the same IM polling or websocket stream.
 
-**Tab 1 — Cloudflare tunnel** (E2B sandboxes run in the cloud and need a public URL to reach your local gateway):
+**Tab 1 — NATAPP tunnel** (cloud sandboxes need a public URL to reach your local gateway):
+
+Create a NATAPP **Web/HTTP** tunnel in the NATAPP dashboard with:
+
+| Setting | Value |
+|---------|-------|
+| Protocol | Web / HTTP |
+| Local address | `127.0.0.1` |
+| Local port | `3001` |
+
+Install NATAPP locally with your tunnel token:
 ```bash
-cloudflared tunnel run aaas-gateway
+curl -fsSL "https://natapp.cn/get.sh?authtoken=<your-token>" | sh
+```
+
+If the installer needs sudo and your agent shell cannot prompt for a password, install into the repo-local `.local/` directory instead:
+```bash
+curl -fsSL "https://natapp.cn/get.sh?authtoken=<your-token>" > /tmp/natapp-install.sh
+NATAPP_INSTALL_DIR="$PWD/.local/natapp" sh /tmp/natapp-install.sh
+```
+
+Start the tunnel:
+```bash
+# If installed system-wide:
+/opt/natapp/run_natapp.sh
+
+# If installed repo-locally:
+./.local/natapp/run_natapp.sh
+```
+
+Set `.env` to the NATAPP public URL shown in the dashboard, for example:
+```env
+GATEWAY_URL=http://s46fa5d3.natappfree.cc
+GATEWAY_LOCAL_URL=http://localhost:3001
 ```
 
 **Tab 2 — Gateway:**
@@ -117,8 +148,8 @@ INFO: event: "dispatcher.start"  agent_id: "agt_xxx"
 
 **Health check:**
 ```bash
-curl http://localhost:3001/health          # local
-curl https://gateway.iefnaf.cc/health     # via tunnel (must return {"ok":true})
+curl http://localhost:3001/health                    # local
+curl http://s46fa5d3.natappfree.cc/health            # via NATAPP tunnel (must return {"ok":true})
 ```
 
 ### Sending messages via lark-cli (Feishu)
@@ -187,7 +218,7 @@ Check dispatcher logs for `event: "chat.error"` or `event: "sandbox.stale"`. Com
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `sandbox.stale` status 500 on first message | Cloudflare tunnel not running | Start `cloudflared tunnel run aaas-gateway` |
+| `sandbox.stale` status 500 on first message | NATAPP tunnel not running or `GATEWAY_URL` points to the wrong public URL | Start `./.local/natapp/run_natapp.sh` (or `/opt/natapp/run_natapp.sh`) and verify `curl $GATEWAY_URL/health` |
 | `polling.error: TypeError: fetch failed` | Telegram API unreachable | Set `HTTPS_PROXY=http://127.0.0.1:7890` in `.env` and restart dispatcher |
 | Message is `message.deduplicated` but user got error | Multiple dispatcher instances running | Kill all and restart: see below |
 
@@ -201,6 +232,7 @@ pkill -f "pnpm.*dispatcher"
 pkill -f "pnpm.*gateway"
 pkill -f "node.*dispatcher.*index"
 pkill -f "node.*gateway.*index"
+pkill -f "natapp.*authtoken"
 lsof -ti:3001 | xargs kill -9
 ```
 

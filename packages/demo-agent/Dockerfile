@@ -1,33 +1,27 @@
-FROM uhub.service.ucloud.cn/wudao/ci-node:22p1 AS builder
+# ── Stage 1: Build ──────────────────────────────────────────────────────────
+FROM uhub.service.ucloud.cn/wudao/ci-node-slim:22p2 AS builder
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 WORKDIR /app
 
-# Copy workspace root files
 COPY pnpm-workspace.yaml package.json tsconfig.base.json pnpm-lock.yaml ./
-# Copy agent-sdk (workspace dependency) and demo-agent
 COPY packages/agent-sdk/ packages/agent-sdk/
 COPY packages/demo-agent/ packages/demo-agent/
 
-# Install + build only demo-agent and its dependencies
 RUN pnpm install --frozen-lockfile --filter @aaas/demo-agent... \
-    && pnpm --filter @alexlikevibe/agent-sdk build \
-    && pnpm --filter @aaas/demo-agent build
+    && pnpm --filter @aaas/demo-agent... build \
+    && pnpm --filter @aaas/demo-agent deploy --prod /deploy
 
-# ── Production image ──────────────────────────────────────────────────────────
-FROM uhub.service.ucloud.cn/wudao/ci-node:22p1
+# ── Stage 2: Production ──────────────────────────────────────────────────────
+# sandbox-base 已包含: node, envd, s6-overlay (仅 envd 服务), user 账号
+# app 进程由 dispatcher 通过 SDK commands.run 拉起，不通过 s6
+FROM uhub.service.ucloud.cn/wudao/sandbox-base:latest
 WORKDIR /app
-COPY --from=builder /app/packages/demo-agent/package.json ./
-COPY --from=builder /app/packages/demo-agent/dist ./dist/
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/agent-sdk/package.json ./packages/agent-sdk/package.json
-COPY --from=builder /app/packages/agent-sdk/dist ./packages/agent-sdk/dist/
-COPY --from=builder /app/packages/agent-sdk/node_modules ./packages/agent-sdk/node_modules/
-RUN mkdir -p node_modules/@alexlikevibe && \
-    ln -s ../../packages/agent-sdk node_modules/@alexlikevibe/agent-sdk
+
+COPY --from=builder /deploy/node_modules ./node_modules/
+COPY --from=builder /deploy/dist ./dist/
+COPY --from=builder /deploy/package.json ./
 RUN mkdir -p /persistent/shared /persistent/conversation && chmod -R 777 /persistent
 
 ENV NODE_ENV=production
 ENV PORT=8080
 EXPOSE 8080
-
-CMD ["node", "dist/agent.js"]

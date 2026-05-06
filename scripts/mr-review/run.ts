@@ -146,8 +146,16 @@ export async function runMrReview(
       throw new Error(`Claude exited with code ${claudeResult.exitCode}`)
     }
 
-    // 5. Read and parse review.json
-    const raw = await sandbox.files.read(REVIEW_OUTPUT_PATH)
+    // 5. Parse review output — prefer stdout, fallback to file
+    let raw: string
+    try {
+      raw = extractJson(claudeResult.stdout)
+      // Sanity check that we actually got JSON, not the original diff text
+      const parsed = JSON.parse(raw)
+      if (typeof parsed !== 'object' || parsed === null) throw new Error('not an object')
+    } catch {
+      raw = await sandbox.files.read(REVIEW_OUTPUT_PATH)
+    }
     const review = parseReviewOutput(raw)
 
     // 6. Post comments (runner side)

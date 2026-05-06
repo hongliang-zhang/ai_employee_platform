@@ -31,3 +31,18 @@ Key subcommands:
 - `ags file` — file operations in a sandbox
 
 Run `ags <subcommand> --help` for details.
+
+## jcli — Jenkins CLI
+
+A Go-based Jenkins CLI ([jenkins-zh/jenkins-cli](https://github.com/jenkins-zh/jenkins-cli)) that provides a friendlier interface for managing Jenkins than the official `jenkins-cli.jar`. Supports multiple Jenkins instances via a config file.
+
+**Use when:** managing Jenkins jobs, plugins, configuration, or instances from the command line.
+
+Key subcommands:
+- `jcli job` — search, build, and get log output for jobs
+- `jcli plugin` — list, search, install, and upload plugins
+- `jcli config` — manage Jenkins connection configs (multiple instances supported)
+- `jcli center` — download, upgrade, or restart the Jenkins center
+- `jcli open` — open Jenkins in a browser
+
+Run `jcli <subcommand> --help` for details.
