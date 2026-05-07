@@ -6,10 +6,9 @@ import { createEncryptor } from '../packages/dispatcher/src/encrypt.js'
 
 const DATABASE_URL = process.env.DATABASE_URL!
 const BOT_TOKEN_ENC_KEY = process.env.BOT_TOKEN_ENC_KEY!
-const E2B_TEMPLATE_ID = process.env.E2B_TEMPLATE_ID!
 
-if (!DATABASE_URL || !BOT_TOKEN_ENC_KEY || !E2B_TEMPLATE_ID) {
-  console.error('Required env vars: DATABASE_URL, BOT_TOKEN_ENC_KEY, E2B_TEMPLATE_ID')
+if (!DATABASE_URL || !BOT_TOKEN_ENC_KEY) {
+  console.error('Required env vars: DATABASE_URL, BOT_TOKEN_ENC_KEY')
   process.exit(1)
 }
 
@@ -23,6 +22,12 @@ console.log('Migrations complete.')
 const rl = createInterface({ input: process.stdin, output: process.stderr })
 const ask = (q: string): Promise<string> =>
   new Promise(resolve => rl.question(q, answer => resolve(answer.trim())))
+
+const sandboxTemplateId = await ask('Enter sandbox template/tool ID: ')
+if (!sandboxTemplateId) {
+  console.error('Sandbox template/tool ID is required')
+  process.exit(1)
+}
 
 // Select provider
 const provider = await ask('Provider [telegram/feishu]: ')
@@ -52,7 +57,7 @@ const agentId = 'agt_' + createId()
 const cfgId = 'cfg_' + createId()
 
 await prisma.agent.create({
-  data: { id: agentId, name: 'Demo Agent', status: 'active', e2bTemplateId: E2B_TEMPLATE_ID, port: 8080, idleTimeoutMs: 300000 },
+  data: { id: agentId, name: 'Demo Agent', status: 'active', e2bTemplateId: sandboxTemplateId, port: 8080, idleTimeoutMs: 300000 },
 })
 
 await prisma.imConfig.create({

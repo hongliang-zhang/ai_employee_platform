@@ -31,7 +31,14 @@ export async function createAgent(options: CreateAgentOptions = {}): Promise<voi
 
   // Build the express app synchronously (no async init yet — just mounts routes).
   // /health is available as soon as server.listen() is called.
-  const app = createHarnessApp({ systemPrompt, tools, skillDirs, config, gateway })
+  const app = createHarnessApp({
+    systemPrompt,
+    tools,
+    skillDirs,
+    config,
+    gateway,
+    onShutdown: fileSync ? () => fileSync!.flush() : undefined,
+  })
 
   // Mark flags as false so /chat returns 503 until both are ready
   app.locals.sessionReady = false
@@ -44,14 +51,10 @@ export async function createAgent(options: CreateAgentOptions = {}): Promise<voi
     resolve()
   }))
 
-  // After listen(), kick off session init and file sync in parallel.
-  // While either is still initializing, /health and /chat return 503.
-  // If session initialization fails, /chat returns 500 and /health remains unhealthy.
-  const sessionInitPromise = app.locals.initSession().catch((err: unknown) => {
-    logger.error({ event: 'agent.session_init_failed', error: String(err) })
-    app.locals.sessionInitError = String(err)
-  })
-
+  // In sandbox mode, file sync must complete before session init so that
+  // existing session history is downloaded from COS before SessionManager
+  // looks for it. Running them concurrently would cause SessionManager to
+  // find an empty conversation/ dir and start a fresh session every time.
   const fileSyncPromise = fileSync
     ? (() => {
         const initStart = Date.now()
@@ -68,14 +71,14 @@ export async function createAgent(options: CreateAgentOptions = {}): Promise<voi
       })()
     : Promise.resolve()
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    fileSync?.stopWatch()
-    server.close(() => process.exit(0))
-  })
+  // Session init runs after file sync (files must be present before SessionManager looks for them).
+  // While either is still initializing, /health and /chat return 503.
+  // If session initialization fails, /chat returns 500 and /health remains unhealthy.
+  fileSyncPromise
+    .then(() => app.locals.initSession())
+    .catch((err: unknown) => {
+      logger.error({ event: 'agent.session_init_failed', error: String(err) })
+      app.locals.sessionInitError = String(err)
+    })
 
-  // In local mode, await both so the process doesn't exit early
-  if (config.mode !== 'sandbox') {
-    await Promise.all([sessionInitPromise, fileSyncPromise])
-  }
 }

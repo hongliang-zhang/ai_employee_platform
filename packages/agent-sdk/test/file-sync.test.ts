@@ -64,4 +64,42 @@ describe('FileSync', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('https://s3/upload', expect.objectContaining({ method: 'PUT' }))
   })
+
+  // Regression for: SIGTERM handler called stopWatch() then exited without a final sync,
+  // so session history written in the last <10s before shutdown was never uploaded to COS.
+  it('flush: uploads changed files without waiting for the next poll interval', async () => {
+    vi.mocked(mockGateway.presignUrls).mockResolvedValue([
+      { path: 'conversation/session.jsonl', url: 'https://s3/upload', expires_in: 3600 },
+    ])
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    global.fetch = fetchMock
+
+    const sync = new FileSync(mockGateway, tmpDir, 60_000) // intentionally long — won't fire
+    sync.startWatch()
+
+    writeFileSync(join(tmpDir, 'conversation', 'session.jsonl'), '{"type":"session"}')
+
+    await sync.flush() // must upload immediately, not wait for the next 60s poll
+    sync.stopWatch()
+
+    expect(fetchMock).toHaveBeenCalledWith('https://s3/upload', expect.objectContaining({ method: 'PUT' }))
+  })
+
+  it('flush: uploads pending changes even after stopWatch (models the SIGTERM scenario)', async () => {
+    vi.mocked(mockGateway.presignUrls).mockResolvedValue([
+      { path: 'conversation/session.jsonl', url: 'https://s3/upload', expires_in: 3600 },
+    ])
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    global.fetch = fetchMock
+
+    const sync = new FileSync(mockGateway, tmpDir, 60_000)
+    sync.startWatch()
+
+    writeFileSync(join(tmpDir, 'conversation', 'session.jsonl'), '{"type":"session"}')
+
+    sync.stopWatch() // simulate SIGTERM stopping the poller
+    await sync.flush() // final sync that the SIGTERM handler now performs
+
+    expect(fetchMock).toHaveBeenCalledWith('https://s3/upload', expect.objectContaining({ method: 'PUT' }))
+  })
 })

@@ -28,13 +28,15 @@ export interface HarnessServerOptions {
   skillDirs?: string[]
   config: ResolvedConfig
   gateway?: GatewayClient
+  /** Called by POST /shutdown (triggered by dispatcher before sandbox kill) to flush session files. */
+  onShutdown?: () => Promise<void>
 }
 
 // Note: /chat requests are processed serially by the pi agent session.
 // Concurrent requests are not supported in MVP — the dispatcher ensures
 // one request at a time per conversation (sandbox-per-conversation model).
 export function createHarnessApp(options: HarnessServerOptions): Application {
-  const { config, systemPrompt, tools = [], gateway } = options
+  const { config, systemPrompt, tools = [], gateway, onShutdown } = options
   const app = express()
   app.use(express.json())
 
@@ -178,6 +180,19 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
     }
 
     res.json({ reply: lastReply })
+  })
+
+  // Dispatcher calls POST /shutdown after receiving the chat reply, before instance.kill().
+  // This gives the agent a chance to flush session files to COS reliably, without
+  // blocking the chat response. SIGTERM cannot be used because the agent runs as a
+  // backgrounded process (nohup ... &) inside the e2b container and may not receive it.
+  app.post('/shutdown', async (_req, res) => {
+    if (onShutdown) {
+      await onShutdown().catch((err) =>
+        logger.warn({ event: 'harness.shutdown_flush_failed', error: String(err) })
+      )
+    }
+    res.json({ ok: true })
   })
 
   return app

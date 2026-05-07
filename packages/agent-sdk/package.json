@@ -1,6 +1,6 @@
 {
   "name": "@alexlikevibe/agent-sdk",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "AaaS Agent SDK — build agents that run on the AaaS harness",
   "type": "module",
   "main": "./dist/index.js",

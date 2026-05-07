@@ -31,7 +31,7 @@ static get domain() {
 | 3 | `packages/dispatcher/src/sandbox.ts` | 修改 | `createSandboxOrchestrator` 接收 `domain` 参数，传给 `Sandbox.create` |
 | 4 | `packages/dispatcher/tests/sandbox.test.ts` | 修改 | 更新 mock 匹配新参数 |
 | 5 | DB Schema (`schema.prisma`) | **不改** | `e2b_template_id` 字段名保持不变，只是存值从 e2b template ID 变为腾讯云沙箱工具名称 |
-| 6 | `scripts/setup.ts` | **不改** | `E2B_TEMPLATE_ID` 环境变量含义变为腾讯云沙箱工具名称，代码无需改 |
+| 6 | `scripts/setup.ts` | 修改 | 不再从 `.env` 读取 `E2B_TEMPLATE_ID`；交互式输入沙箱工具名称并写入 DB |
 
 ### 2.2 迁移必需的配套改动
 
@@ -57,7 +57,7 @@ E2B_DOMAIN=ap-beijing.tencentags.com
 E2B_API_KEY=ark_xxxx
 
 # 沙箱工具名称（腾讯云控制台创建，对应原 e2b template ID）
-E2B_TEMPLATE_ID=code-xxx
+# 不放在 .env；scripts/setup.ts 会交互式询问并写入 agents.e2b_template_id。
 ```
 
 ### 3.2 `packages/dispatcher/src/index.ts`
@@ -117,7 +117,7 @@ const sandbox = await retryWithBackoff(() =>
 |------|------|
 | `@e2b/code-interpreter` 依赖版本 | 腾讯云使用同一 SDK，无需换包 |
 | DB migration / schema | `e2b_template_id` 字段名虽带有 "e2b" 前缀，但语义兼容。避免不必要的 migration |
-| `scripts/setup.ts` | `E2B_TEMPLATE_ID` 值改为腾讯云工具名即可，代码无需改 |
+| `scripts/setup.ts` | 不读 `E2B_TEMPLATE_ID`；交互式询问沙箱工具名并写入 DB |
 | `packages/agent-sdk/` | 不涉及沙箱创建 |
 | `packages/gateway/` | 不涉及沙箱 |
 | `packages/demo-agent/` | 运行在沙箱内部，不创建沙箱 |
@@ -128,8 +128,8 @@ const sandbox = await retryWithBackoff(() =>
 1. **单元测试**：`pnpm --filter @aaas/dispatcher test` — sandbox.test.ts 更新后通过
 2. **手动集成测试**：
    - 在腾讯云控制台创建 API Key 和沙箱工具
-   - 配置 `.env` 中的 `E2B_DOMAIN`、`E2B_API_KEY`、`E2B_TEMPLATE_ID`
-   - 运行 `setup.ts` 初始化 agent
+   - 配置 `.env` 中的 `E2B_DOMAIN`、`E2B_API_KEY`
+   - 运行 `setup.ts` 初始化 agent，并在提示时输入腾讯云沙箱工具名称
    - 启动 dispatcher + gateway，通过 Telegram 发送消息验证端到端流程
 
 ## 6. 风险与注意事项

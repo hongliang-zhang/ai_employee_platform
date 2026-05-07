@@ -63,6 +63,10 @@ export class FileSync {
     }
   }
 
+  async flush(): Promise<void> {
+    await this.syncCycle()
+  }
+
   private scanFiles(): Map<string, number> {
     const result = new Map<string, number>()
     this.walkDir(this.root, result)

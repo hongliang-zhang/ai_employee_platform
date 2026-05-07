@@ -74,6 +74,28 @@ describe('SandboxOrchestrator', () => {
     expect(kill).toHaveBeenCalledOnce()
   })
 
+  it('retries transient 503 chat responses after health is ready', async () => {
+    vi.useFakeTimers()
+    try {
+      const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
+      const kill = vi.fn().mockResolvedValue(undefined)
+      mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1', 'e2b.app', kill))
+      mockFetch
+        .mockResolvedValueOnce({ ok: true }) // /health
+        .mockResolvedValueOnce({ ok: false, status: 503 }) // /chat transient
+        .mockResolvedValueOnce(okJson({ reply: 'hello after retry' })) // /chat success
+        .mockResolvedValueOnce({ ok: true }) // /shutdown
+
+      const chatPromise = orch.chat(baseParams())
+      await vi.runAllTimersAsync()
+
+      await expect(chatPromise).resolves.toBe('hello after retry')
+      expect(kill).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('passes correct options to Sandbox.create without domain', async () => {
     const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
     mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1'))
@@ -105,6 +127,63 @@ describe('SandboxOrchestrator', () => {
       'https://8080-sb_1.ap-beijing.tencentags.com/chat',
       expect.any(Object)
     )
+  })
+
+  it('waits long enough for AGS health endpoint to become ready', async () => {
+    vi.useFakeTimers()
+    try {
+      const orch = createSandboxOrchestrator({ e2bApiKey: 'key', e2bDomain: 'ap-beijing.tencentags.com', gatewayUrl: 'http://gw', instanceId: 'test' })
+      const kill = vi.fn().mockResolvedValue(undefined)
+      mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1', 'ap-beijing.tencentags.com', kill))
+      for (let i = 0; i < 20; i++) mockFetch.mockResolvedValueOnce({ ok: false, status: 404 })
+      mockFetch
+        .mockResolvedValueOnce({ ok: true })              // /health (finally ready)
+        .mockResolvedValueOnce(okJson({ reply: 'ready' })) // /chat
+        .mockResolvedValueOnce({ ok: true })              // /shutdown
+
+      const chatPromise = orch.chat(baseParams())
+      await vi.runAllTimersAsync()
+
+      await expect(chatPromise).resolves.toBe('ready')
+      expect(kill).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('calls /shutdown before killing sandbox after successful chat', async () => {
+    const killOrder: string[] = []
+    const kill = vi.fn().mockImplementation(async () => { killOrder.push('kill') })
+    mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1', 'e2b.app', kill))
+
+    const shutdownOrder: string[] = []
+    mockFetch.mockImplementation(async (url: string) => {
+      if ((url as string).endsWith('/shutdown')) shutdownOrder.push('shutdown')
+      return okJson({ reply: 'hello' })
+    })
+
+    const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
+    await orch.chat(baseParams())
+
+    expect(shutdownOrder).toEqual(['shutdown'])
+    expect(killOrder).toEqual(['kill'])
+    // shutdown resolved before kill because kill is in the finally block
+    expect(kill).toHaveBeenCalledOnce()
+  })
+
+  it('does not call /shutdown when chat fails; still kills sandbox', async () => {
+    const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
+    const kill = vi.fn().mockResolvedValue(undefined)
+    mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1', 'e2b.app', kill))
+    mockFetch
+      .mockResolvedValueOnce({ ok: true }) // /health
+      .mockResolvedValueOnce({ ok: false, status: 500 }) // /chat fails
+
+    await expect(orch.chat(baseParams())).rejects.toThrow('sandbox returned 500')
+
+    const calls = mockFetch.mock.calls.map((c) => c[0] as string)
+    expect(calls.some((url) => url.endsWith('/shutdown'))).toBe(false)
+    expect(kill).toHaveBeenCalledOnce()
   })
 
   it('kills sandbox and throws when health check times out', async () => {
