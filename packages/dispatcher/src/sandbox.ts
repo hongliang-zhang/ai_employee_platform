@@ -5,11 +5,24 @@ import { retryWithBackoff } from './lib/utils.js'
 const logger = pino({ transport: { target: 'pino-pretty' } })
 
 const SANDBOX = {
-  healthPollAttempts: 10,
-  healthPollIntervalMs: 100,
-  healthPollTimeoutMs: 500,
-  agentStartTimeoutMs: 5_000,
+  // AGS cold starts usually expose the port within a few seconds, but allow a
+  // larger startup budget for image pulls, slow scheduling, and first-time boot.
+  healthPollAttempts: 45,
+  healthPollIntervalMs: 1_000,
+  healthPollTimeoutMs: 1_000,
+
+  // commands.run only launches the detached agent process; it should return
+  // quickly, but AGS envd can occasionally be slow to accept the command.
+  agentStartTimeoutMs: 10_000,
+
+  // Once /health is ready, /chat may still see a short AGS ingress propagation
+  // window. Retry transient 503s for up to ~10s before surfacing failure.
+  chatRetryAttempts: 10,
+  chatRetryIntervalMs: 1_000,
   chatTimeoutMs: 120_000,
+
+  // Budget for the agent to flush session files to COS before the sandbox is killed.
+  shutdownTimeoutMs: 15_000,
 } as const
 
 interface ChatParams {
@@ -76,20 +89,44 @@ export function createSandboxOrchestrator(config: {
     return { instance: sandbox, chatUrl }
   }
 
+  async function shutdownAgent(chatUrl: string): Promise<void> {
+    try {
+      await fetch(`${chatUrl}/shutdown`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(SANDBOX.shutdownTimeoutMs),
+      })
+    } catch (err) {
+      logger.warn({ event: 'sandbox.shutdown_failed', error: String(err) })
+    }
+  }
+
   return {
     async chat(params: ChatParams): Promise<string> {
       const { instance, chatUrl } = await spawnSandbox(params)
       try {
         const chatStart = Date.now()
-        const res = await fetch(`${chatUrl}/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Trace-Id': params.traceId },
-          body: JSON.stringify({ message: params.message, last_message_id: params.lastMessageId }),
-          signal: AbortSignal.timeout(SANDBOX.chatTimeoutMs),
-        })
-        if (!res.ok) throw new Error(`sandbox returned ${res.status}`)
-        logger.info({ event: 'sandbox.chat', trace_id: params.traceId, conversation_id: params.conversationId, duration_ms: Date.now() - chatStart })
-        return ((await res.json()) as { reply: string }).reply
+        for (let attempt = 1; attempt <= SANDBOX.chatRetryAttempts; attempt++) {
+          const res = await fetch(`${chatUrl}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Trace-Id': params.traceId },
+            body: JSON.stringify({ message: params.message, last_message_id: params.lastMessageId }),
+            signal: AbortSignal.timeout(SANDBOX.chatTimeoutMs),
+          })
+          if (res.ok) {
+            logger.info({ event: 'sandbox.chat', trace_id: params.traceId, conversation_id: params.conversationId, duration_ms: Date.now() - chatStart })
+            const reply = ((await res.json()) as { reply: string }).reply
+            // Flush session files to COS before killing the sandbox. Must happen here
+            // (not on SIGTERM) because the agent runs as a background process inside
+            // the e2b container and may not receive the signal when instance.kill() fires.
+            await shutdownAgent(chatUrl)
+            return reply
+          }
+          if (res.status !== 503 || attempt === SANDBOX.chatRetryAttempts) {
+            throw new Error(`sandbox returned ${res.status}`)
+          }
+          await new Promise(r => setTimeout(r, SANDBOX.chatRetryIntervalMs))
+        }
+        throw new Error('sandbox chat retry exhausted')
       } finally {
         // suppress kill errors so they don't mask the original chat error
         await instance.kill().catch(() => {})

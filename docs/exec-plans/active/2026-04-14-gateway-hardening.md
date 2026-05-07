@@ -68,8 +68,9 @@ For the gateway test flow, verify `.env` contains at minimum:
 If you also plan to run the interactive setup script or the full local stack later, also verify:
 - `JWT_SECRET`
 - `BOT_TOKEN_ENC_KEY`
-- `E2B_TEMPLATE_ID`
 - `LLM_API_KEY`
+
+`scripts/setup.ts` prompts for the sandbox template/tool ID and stores it in the database; it is not read from `.env`.
 
 Expected: local `.env` remains intact when already configured, and missing setups can still be bootstrapped from `.env.example`.
 

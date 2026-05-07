@@ -10,7 +10,7 @@
     "docker:deploy": "bash deploy.sh"
   },
   "dependencies": {
-    "@alexlikevibe/agent-sdk": "^0.1.5"
+    "@alexlikevibe/agent-sdk": "^0.1.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

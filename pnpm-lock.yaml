@@ -89,8 +89,8 @@ importers:
   packages/demo-agent:
     dependencies:
       '@alexlikevibe/agent-sdk':
-        specifier: ^0.1.5
-        version: 0.1.5(ws@8.20.0)(zod@4.3.6)
+        specifier: ^0.1.7
+        version: 0.1.7(ws@8.20.0)(zod@4.3.6)
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -239,8 +239,8 @@ importers:
 
 packages:
 
-  '@alexlikevibe/agent-sdk@0.1.5':
-    resolution: {integrity: sha512-GFSSnlrQlk0m1Znexdrx+/wXl2bvdQsa4m/5cgaZnq6ojPcI2jL+XCGTFr3+BU6dfzivmWpXN75TJ57YYh4DzQ==}
+  '@alexlikevibe/agent-sdk@0.1.7':
+    resolution: {integrity: sha512-wn83fhUIFFMUoZqc2ojnChF8U8ZglJoYAxl7mYMvy3HB8rUfl+EHlNNfnQIMcIwztXdi+6PXaLVR5rGycaJY/A==}
     engines: {node: '>=22'}
 
   '@anthropic-ai/sdk@0.73.0':
@@ -3557,7 +3557,7 @@ packages:
 
 snapshots:
 
-  '@alexlikevibe/agent-sdk@0.1.5(ws@8.20.0)(zod@4.3.6)':
+  '@alexlikevibe/agent-sdk@0.1.7(ws@8.20.0)(zod@4.3.6)':
     dependencies:
       '@mariozechner/pi-ai': 0.62.0(ws@8.20.0)(zod@4.3.6)
       '@mariozechner/pi-coding-agent': 0.62.0(ws@8.20.0)(zod@4.3.6)

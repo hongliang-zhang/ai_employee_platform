@@ -97,6 +97,31 @@ describe('HarnessServer', () => {
     expect(res.body.reply).toBe('Hello!')
   })
 
+  it('POST /shutdown calls onShutdown and returns { ok: true }', async () => {
+    const onShutdown = vi.fn().mockResolvedValue(undefined)
+    const app = await createHarnessApp({
+      systemPrompt: 'test',
+      config: { mode: 'local', port: 8080 },
+      onShutdown,
+    })
+    const res = await request(app).post('/shutdown')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+    expect(onShutdown).toHaveBeenCalledOnce()
+  })
+
+  it('POST /shutdown returns { ok: true } even when onShutdown throws', async () => {
+    const onShutdown = vi.fn().mockRejectedValue(new Error('flush failed'))
+    const app = await createHarnessApp({
+      systemPrompt: 'test',
+      config: { mode: 'local', port: 8080 },
+      onShutdown,
+    })
+    const res = await request(app).post('/shutdown')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+  })
+
   it('POST /chat accepts last_message_id and passes it to gateway.appendMessages', async () => {
     const { createAgentSession } = await import('@mariozechner/pi-coding-agent')
     const mockSession = {

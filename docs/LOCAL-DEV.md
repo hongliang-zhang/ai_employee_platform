@@ -41,7 +41,8 @@ Edit `.env` and fill in:
 | `HTTPS_PROXY` / `HTTP_PROXY` | Your local proxy, e.g. `http://127.0.0.1:7890` — required in China to reach Telegram API |
 | `GATEWAY_URL` | Your NATAPP public tunnel URL, e.g. `http://s46fa5d3.natappfree.cc` |
 | `E2B_API_KEY` | e2b.dev dashboard |
-| `E2B_TEMPLATE_ID` | e2b.dev dashboard — see also [Building the e2b template](#building-the-e2b-template) |
+
+The sandbox template/tool ID is not a runtime environment variable. `scripts/setup.ts` prompts for it and stores it in the `agents.e2b_template_id` database column.
 
 > **Password with special characters:** If your database password contains `@` or other URL-special characters, URL-encode them (e.g. `@` → `%40`) inside the connection string.
 
@@ -67,7 +68,8 @@ pnpm tsx scripts/setup.ts
 
 This will:
 - Re-run migrations (idempotent)
-- Prompt you for your Telegram bot token
+- Prompt you for the sandbox template/tool ID
+- Prompt you for your Telegram bot token or Feishu credentials
 - Create an `agent` and `im_config` row in the database
 
 Output looks like:
@@ -271,7 +273,7 @@ HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 \
   e2b template build --name demo-agent --no-cache
 ```
 
-After a successful build, update `E2B_TEMPLATE_ID` in `.env` with the template ID printed in the output (also recorded in `packages/demo-agent/e2b.toml`).
+After a successful build, use the template ID printed in the output (also recorded in `packages/demo-agent/e2b.toml`) when `scripts/setup.ts` prompts for the sandbox template/tool ID.
 
 #### Why npm package + tsc instead of esbuild?
 
@@ -323,7 +325,7 @@ If you see `404: Template not found` when building, the template ID in `e2b.toml
 e2b template build --name demo-agent --no-cache
 ```
 
-The new template ID will be written back to `e2b.toml` automatically. Update `E2B_TEMPLATE_ID` in `.env` accordingly.
+The new template ID will be written back to `e2b.toml` automatically. Use that value the next time you run `scripts/setup.ts`, or update the existing agent row in the database.
 
 ---
 

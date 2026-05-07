@@ -177,15 +177,14 @@ E2B_TEMPLATE_ID=...
 
 改为：
 ```
-# 沙箱后端域名。腾讯云: ap-beijing.tencentags.com，e2b 官方: e2b.app（默认，留空即可）
-# E2B_DOMAIN=ap-beijing.tencentags.com
-
 # 沙箱 API Key
 E2B_API_KEY=e2b_...
 
-# 沙箱工具名称（e2b template ID 或腾讯云沙箱工具名称）
-E2B_TEMPLATE_ID=...
+# 沙箱后端域名。腾讯云: ap-beijing.tencentags.com，e2b 官方: e2b.app（默认，留空即可）
+# E2B_DOMAIN=ap-beijing.tencentags.com
 ```
+
+沙箱工具名称（e2b template ID 或腾讯云沙箱工具名称）由 `scripts/setup.ts` 交互式询问，并写入 `agents.e2b_template_id`；不再放在 `.env`。
 
 - [ ] **Step 2: Commit**
 
@@ -212,7 +211,7 @@ Expected: 无错误
 
 ### Task 6: 端到端验证（集成测试 + ags-cli）
 
-> **前提：** 已完成 Task 1~4 代码修改并通过单元测试。腾讯云沙箱工具名称（`E2B_TEMPLATE_ID`）需替换为腾讯云实际创建的沙箱工具名称（如 `code-interpreter-v1`），而非 e2b 官方 template ID。
+> **前提：** 已完成 Task 1~4 代码修改并通过单元测试。腾讯云沙箱工具名称需替换为腾讯云实际创建的沙箱工具名称（如 `code-interpreter-v1`），而非 e2b 官方 template ID；该值在运行 `scripts/setup.ts` 时输入并写入 DB。
 
 **Tools:**
 - `ags-cli` — 腾讯云 Agent Runtime 命令行工具，用于查看和管理沙箱实例（[文档](https://cloud.tencent.com/document/product/1814/123848)）
@@ -228,8 +227,8 @@ E2B_DOMAIN=ap-beijing.tencentags.com
 # 腾讯云 API Key（与 e2b API Key 不同，需从腾讯云控制台获取）
 E2B_API_KEY=<your-tencent-cloud-api-key>
 
-# 腾讯云沙箱工具名称（需预先在腾讯云控制台创建）
-E2B_TEMPLATE_ID=code-interpreter-v1
+# 腾讯云沙箱工具名称（需预先在腾讯云控制台创建）不放在 .env；
+# 运行 scripts/setup.ts 时输入，例如 code-interpreter-v1。
 ```
 
 - [ ] **Step 2: 使用 ags-cli 查看腾讯云沙箱状态**
