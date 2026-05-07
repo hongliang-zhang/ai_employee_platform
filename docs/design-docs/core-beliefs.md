@@ -30,7 +30,7 @@ Dispatcher writes `source: 'im'` messages (user-side). Sandbox writes `source: '
 
 ## 4. Deduplication is infrastructure, not application logic
 
-The `inbound_jobs` table provides exactly-once semantics for inbound IM messages. Application code (processor, sandbox) assumes each message is processed once.
+The `im_message_receipts` table provides exactly-once semantics for received IM messages. Application code (processor, sandbox) assumes each message is processed once.
 
 **Why:** Telegram's long-polling API can deliver the same update multiple times. Handling dedup at the infrastructure level prevents double-responses and double-writes without every handler needing to be idempotent.
 

@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createSandboxOrchestrator } from '../src/sandbox.js'
 
-// Mock e2b Sandbox
 const mockCreate = vi.fn()
-const _mockKill = vi.fn()
 vi.mock('@e2b/code-interpreter', () => ({
   Sandbox: { create: (...args: any[]) => mockCreate(...args) },
 }))
@@ -13,69 +11,118 @@ vi.stubGlobal('fetch', mockFetch)
 
 beforeEach(() => vi.clearAllMocks())
 
+function fakeSandbox(id: string, domain = 'e2b.app', kill = vi.fn().mockResolvedValue(undefined)) {
+  return {
+    sandboxId: id,
+    sandboxDomain: domain,
+    commands: { run: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }) },
+    kill,
+  }
+}
+
+function okJson(data: unknown) {
+  return { ok: true, json: async () => data }
+}
+
+function baseParams(overrides = {}) {
+  return {
+    conversationId: 'conv_1',
+    templateId: 'tpl_x',
+    port: 8080,
+    sessionToken: 'tok',
+    message: 'hi',
+    lastMessageId: null,
+    traceId: 'tr_1',
+    ...overrides,
+  }
+}
+
 describe('SandboxOrchestrator', () => {
-  it('returns existing sandbox on reuse', async () => {
+  it('creates a fresh sandbox for each request', async () => {
     const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
-    const fakeCommands = { run: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }) }
-    const fakeSandbox = { sandboxId: 'sb_1', sandboxDomain: 'e2b.app', commands: fakeCommands }
-    mockCreate.mockResolvedValueOnce(fakeSandbox)
-    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    mockCreate
+      .mockResolvedValueOnce(fakeSandbox('sb_1'))
+      .mockResolvedValueOnce(fakeSandbox('sb_2'))
+    mockFetch.mockResolvedValue(okJson({ reply: 'hello' }))
 
-    const r1 = await orch.getOrCreate('conv_1', 'tpl_x', 8080, 'tok', 300000)
-    const r2 = await orch.getOrCreate('conv_1', 'tpl_x', 8080, 'tok', 300000)
-    expect(mockCreate).toHaveBeenCalledOnce()
-    expect(r1.sandboxId).toBe(r2.sandboxId)
+    await orch.chat(baseParams({ message: 'first' }))
+    await orch.chat(baseParams({ message: 'second' }))
+
+    expect(mockCreate).toHaveBeenCalledTimes(2)
   })
 
-  it('creates new sandbox when none exists', async () => {
+  it('kills sandbox after successful chat', async () => {
     const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
-    const fakeCommands = { run: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }) }
-    const fakeSandbox = { sandboxId: 'sb_2', sandboxDomain: 'e2b.app', commands: fakeCommands }
-    mockCreate.mockResolvedValueOnce(fakeSandbox)
-    mockFetch.mockResolvedValue({ ok: true })
-    const result = await orch.getOrCreate('conv_2', 'tpl_x', 8080, 'tok', 300000)
-    expect(result.sandboxId).toBe('sb_2')
-    expect(mockCreate).toHaveBeenCalled()
+    const kill = vi.fn().mockResolvedValue(undefined)
+    mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1', 'e2b.app', kill))
+    mockFetch.mockResolvedValue(okJson({ reply: 'hello' }))
+
+    await orch.chat(baseParams())
+
+    expect(kill).toHaveBeenCalledOnce()
   })
 
-  it('creates sandboxes with public port auth disabled', async () => {
+  it('kills sandbox after failed chat', async () => {
     const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
-    const fakeCommands = { run: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }) }
-    const fakeSandbox = { sandboxId: 'sb_public', sandboxDomain: 'tencentags.com', commands: fakeCommands }
-    mockCreate.mockResolvedValueOnce(fakeSandbox)
-    mockFetch.mockResolvedValue({ ok: true })
+    const kill = vi.fn().mockResolvedValue(undefined)
+    mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1', 'e2b.app', kill))
+    mockFetch
+      .mockResolvedValueOnce({ ok: true })           // /health
+      .mockResolvedValueOnce({ ok: false, status: 500 }) // /chat
 
-    await orch.getOrCreate('conv_public', 'tpl_x', 8080, 'tok', 300000)
+    await expect(orch.chat(baseParams())).rejects.toThrow('sandbox returned 500')
+    expect(kill).toHaveBeenCalledOnce()
+  })
+
+  it('passes correct options to Sandbox.create without domain', async () => {
+    const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
+    mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1'))
+    mockFetch.mockResolvedValue(okJson({ reply: 'ok' }))
+
+    await orch.chat(baseParams())
 
     expect(mockCreate).toHaveBeenCalledWith('tpl_x', { apiKey: 'key', secure: false })
   })
 
-  it('removes sandbox from map after destroy', async () => {
-    const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
-    const fakeKill = vi.fn().mockResolvedValue(undefined)
-    const fakeCommands = { run: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }) }
-    const fakeSandbox = { sandboxId: 'sb_3', sandboxDomain: 'e2b.app', commands: fakeCommands, kill: fakeKill }
-    mockCreate.mockResolvedValueOnce(fakeSandbox)
-    mockFetch.mockResolvedValue({ ok: true })
-    await orch.getOrCreate('conv_3', 'tpl_x', 8080, 'tok', 300000)
-    expect(fakeKill).not.toHaveBeenCalled()
-    await orch.destroy('conv_3')
-    expect(fakeKill).toHaveBeenCalled()
+  it('passes domain to Sandbox.create when configured', async () => {
+    const orch = createSandboxOrchestrator({ e2bApiKey: 'key', e2bDomain: 'ap-beijing.tencentags.com', gatewayUrl: 'http://gw', instanceId: 'test' })
+    mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1', 'ap-beijing.tencentags.com'))
+    mockFetch.mockResolvedValue(okJson({ reply: 'ok' }))
+
+    await orch.chat(baseParams())
+
+    expect(mockCreate).toHaveBeenCalledWith('tpl_x', { apiKey: 'key', domain: 'ap-beijing.tencentags.com', secure: false })
   })
 
-  it('passes domain to Sandbox.create when provided', async () => {
+  it('constructs chat URL from sandbox id, port, and domain', async () => {
     const orch = createSandboxOrchestrator({ e2bApiKey: 'key', e2bDomain: 'ap-beijing.tencentags.com', gatewayUrl: 'http://gw', instanceId: 'test' })
-    const fakeCommands = { run: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }) }
-    const fakeSandbox = { sandboxId: 'sb_domain', sandboxDomain: 'ap-beijing.tencentags.com', commands: fakeCommands }
-    mockCreate.mockResolvedValueOnce(fakeSandbox)
-    mockFetch.mockResolvedValue({ ok: true })
+    mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1', 'ap-beijing.tencentags.com'))
+    mockFetch.mockResolvedValue(okJson({ reply: 'ok' }))
 
-    const result = await orch.getOrCreate('conv_domain', 'tpl_x', 8080, 'tok', 300000)
-    expect(mockCreate).toHaveBeenCalledWith('tpl_x', {
-      apiKey: 'key',
-      domain: 'ap-beijing.tencentags.com',
-      secure: false,
-    })
-    expect(result.chatUrl).toBe('https://8080-sb_domain.ap-beijing.tencentags.com')
+    await orch.chat(baseParams())
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://8080-sb_1.ap-beijing.tencentags.com/chat',
+      expect.any(Object)
+    )
+  })
+
+  it('kills sandbox and throws when health check times out', async () => {
+    vi.useFakeTimers()
+    try {
+      const orch = createSandboxOrchestrator({ e2bApiKey: 'key', gatewayUrl: 'http://gw', instanceId: 'test' })
+      const kill = vi.fn().mockResolvedValue(undefined)
+      mockCreate.mockResolvedValueOnce(fakeSandbox('sb_1', 'e2b.app', kill))
+      mockFetch.mockResolvedValue({ ok: false, status: 503 }) // health always fails
+
+      const chatPromise = orch.chat(baseParams())
+      chatPromise.catch(() => {}) // prevent unhandled rejection before .rejects attaches
+      await vi.runAllTimersAsync()
+
+      await expect(chatPromise).rejects.toThrow('sandbox health check timed out')
+      expect(kill).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

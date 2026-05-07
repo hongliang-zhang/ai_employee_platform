@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import jwt from 'jsonwebtoken'
-import { createJwtSigner } from '../src/jwt.js'
+import { createJwtSigner } from '../src/lib/jwt.js'
 
 const SECRET = 'test-secret-32-chars-minimum-len'
 const signer = createJwtSigner(SECRET)

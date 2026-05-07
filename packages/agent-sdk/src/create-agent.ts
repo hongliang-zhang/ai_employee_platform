@@ -45,7 +45,8 @@ export async function createAgent(options: CreateAgentOptions = {}): Promise<voi
   }))
 
   // After listen(), kick off session init and file sync in parallel.
-  // /health already returns 200; /chat returns 503 until both complete.
+  // While either is still initializing, /health and /chat return 503.
+  // If session initialization fails, /chat returns 500 and /health remains unhealthy.
   const sessionInitPromise = app.locals.initSession().catch((err: unknown) => {
     logger.error({ event: 'agent.session_init_failed', error: String(err) })
     app.locals.sessionInitError = String(err)

@@ -29,7 +29,7 @@ All gateway routes return errors in the envelope:
 ## Message delivery guarantee
 
 - **At-least-once delivery to sandbox:** dispatcher retries failed sandbox calls
-- **Deduplication:** `inbound_jobs` UNIQUE constraint on (channel_key, external_message_id) prevents double-processing of the same Telegram update
+- **Deduplication:** `im_message_receipts` UNIQUE constraint on (`im_config_id`, `message_id`) prevents double-processing of the same IM message
 - **Ordered history:** `messages.created_at` with 1ms offsets between batch inserts preserves insert order within a batch; optimistic concurrency (`expected_last_message_id`) prevents interleaved writes
 
 ## Known reliability gaps

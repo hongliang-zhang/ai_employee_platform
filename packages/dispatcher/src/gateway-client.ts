@@ -28,8 +28,8 @@ export function createGatewayClient(gatewayUrl: string, _defaultToken?: string) 
   }
 
   return {
+    // 把 IM 里收到的用户消息写入会话历史
     async appendMessages(
-      _conversationId: string,
       expectedLastMessageId: string | null,
       messages: any[],
       token: string
@@ -38,7 +38,6 @@ export function createGatewayClient(gatewayUrl: string, _defaultToken?: string) 
     },
 
     async loadMessages(
-      _conversationId: string,
       afterMessageId: string | null | undefined,
       token: string
     ): Promise<LoadResult> {

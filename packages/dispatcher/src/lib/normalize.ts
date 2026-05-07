@@ -1,24 +1,24 @@
 export interface NormalizedMessage {
-  channel_key: string
-  external_chat_id: string
-  external_thread_key: string
-  external_message_id: string
-  author: { external_user_id: string; display_name: string | null }
+  imConfigId: string       // 一条 IM 配置的唯一标识，格式固定为 im:{im_config表的主键ID}
+  chatId: string           // 区分不同的聊天窗口（私聊/群组）
+  topicId: string          // 区分同一个群组内的不同话题
+  messageId: string        // IM 平台给每条消息分配的唯一 ID
+  sender: { userId: string; displayName: string | null } // 消息发送者
   content: { type: 'text'; text: string }
 }
 
-export function normalizeTelegramUpdate(update: any, channelKey: string): NormalizedMessage | null {
+export function normalizeTelegramUpdate(update: any, imConfigId: string): NormalizedMessage | null {
   const msg = update.message
   if (!msg || !msg.text) return null
 
   return {
-    channel_key: channelKey,
-    external_chat_id: String(msg.chat.id),
-    external_thread_key: msg.message_thread_id ? String(msg.message_thread_id) : '',
-    external_message_id: String(msg.message_id),
-    author: {
-      external_user_id: String(msg.from?.id ?? 'unknown'),
-      display_name: msg.from?.first_name ?? null,
+    imConfigId,
+    chatId: String(msg.chat.id),
+    topicId: msg.message_thread_id ? String(msg.message_thread_id) : '',
+    messageId: String(msg.message_id),
+    sender: {
+      userId: String(msg.from?.id ?? 'unknown'),
+      displayName: msg.from?.first_name ?? null,
     },
     content: { type: 'text', text: msg.text },
   }
@@ -26,7 +26,7 @@ export function normalizeTelegramUpdate(update: any, channelKey: string): Normal
 
 export function normalizeFeishuEvent(
   event: any,
-  channelKey: string,
+  imConfigId: string,
   botOpenId: string
 ): NormalizedMessage | null {
   const { message, sender } = event
@@ -61,13 +61,13 @@ export function normalizeFeishuEvent(
   if (!text) return null
 
   return {
-    channel_key: channelKey,
-    external_chat_id: message.chat_id,
-    external_thread_key: '',
-    external_message_id: message.message_id,
-    author: {
-      external_user_id: senderOpenId,
-      display_name: null,
+    imConfigId,
+    chatId: message.chat_id,
+    topicId: '',
+    messageId: message.message_id,
+    sender: {
+      userId: senderOpenId,
+      displayName: null,
     },
     content: { type: 'text', text },
   }

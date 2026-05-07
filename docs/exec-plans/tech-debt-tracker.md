@@ -18,7 +18,7 @@ Known issues and deferred work. Each item includes context so future agents can 
 ### [TD-002] No horizontal scaling for dispatcher
 
 **Location:** `packages/dispatcher/src/`
-**Impact:** Medium — only one dispatcher instance can run. `inbound_jobs` lease recovery logic exists (`idx_inbound_jobs_recovery` index) but is not exercised.
+**Impact:** Medium — only one dispatcher instance can run. `im_message_receipts` lease recovery logic exists (`idx_im_message_receipts_recovery` index) but is not exercised.
 **Why deferred:** MVP runs single instance.
 **Resolution path:** Add a background recovery loop that queries stale `processing` jobs and reprocesses them.
 
@@ -61,6 +61,15 @@ Known issues and deferred work. Each item includes context so future agents can 
 **Impact:** Low — 两个并发写入请求可能同时通过 `expected_last_message_id` 校验，导致消息时间戳冲突或写入顺序错乱。MVP 场景下 dispatcher 和 sandbox 的写入基本串行，实际触发概率极低。
 **Why deferred:** MVP 低并发场景下风险可接受；修复需引入数据库事务或行锁，增加复杂度。
 **Resolution path:** 将「查 head + 写入」包在同一个数据库事务中，或对 `conversationId` 加行级锁（`SELECT ... FOR UPDATE`），保证原子性。
+
+---
+
+### [TD-007] `signDispatcherToken` 信任模型不对齐
+
+**Location:** `packages/dispatcher/src/jwt.ts`, `packages/dispatcher/src/gateway-client.ts`, `packages/gateway/src/auth.ts`
+**Impact:** Low — 功能正确，但 dispatcher 自签自验 JWT 是不必要的复杂度。JWT 的 scoping 属性（`caller`, `conversation_id`）对可信方无约束力。
+**Why deferred:** 当前功能正常，优先级低于其他重构工作。
+**Resolution path:** Dispatcher ↔ Gateway 改用静态共享密钥（`GATEWAY_INTERNAL_KEY`）认证，JWT 仅用于约束不可信的 sandbox。详见 [docs/design-docs/dispatcher-gateway-auth.md](../design-docs/dispatcher-gateway-auth.md)。
 
 ---
 

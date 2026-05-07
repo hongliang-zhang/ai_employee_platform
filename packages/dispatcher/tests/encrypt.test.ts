@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createEncryptor } from '../src/encrypt.js'
+import { createEncryptor } from '../src/lib/encrypt.js'
 
 const KEY = '0'.repeat(64) // 32 bytes as hex
 

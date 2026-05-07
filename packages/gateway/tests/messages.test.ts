@@ -32,7 +32,7 @@ beforeAll(async () => {
   })
   await prisma.conversation.upsert({
     where: { id: CONV_ID },
-    create: { id: CONV_ID, agentId: AGENT_ID, channelKey: `im:${CFG_ID}`, externalChatId: '123' },
+    create: { id: CONV_ID, agentId: AGENT_ID, imConfigId: `im:${CFG_ID}`, chatId: '123' },
     update: {},
   })
 })
