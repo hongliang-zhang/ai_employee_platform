@@ -14,6 +14,14 @@ import type { GatewayClient } from './gateway-client.js'
 import type { ResolvedConfig, SandboxConfig } from './environment.js'
 import { logger } from './logger.js'
 
+const HTTP_STATUS = {
+  OK: 200,
+  BAD_REQUEST: 400,
+  NOT_FOUND: 404,
+  SERVICE_UNAVAILABLE: 503,
+  INTERNAL_SERVER_ERROR: 500,
+} as const
+
 export interface HarnessServerOptions {
   systemPrompt: string
   tools?: ToolDefinition[]
@@ -31,7 +39,8 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
   app.use(express.json())
 
   // Session is initialized asynchronously after the server starts listening.
-  // /health returns 200 immediately; /chat returns 503 until session is ready.
+  // While session or file sync is still initializing, /health and /chat return 503.
+  // If session initialization fails, /chat returns 500 and /health remains unhealthy.
   let session: Awaited<ReturnType<typeof createAgentSession>>['session'] | null = null
   let lastMessageId: string | null = null
 
@@ -98,7 +107,7 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
 
   app.get('/health', (_req, res) => {
     if (!app.locals.sessionReady || !app.locals.fileSyncReady) {
-      res.status(503).json({ ok: false, reason: 'agent initializing' })
+      res.status(HTTP_STATUS.SERVICE_UNAVAILABLE).json({ ok: false, reason: 'agent initializing' })
       return
     }
     res.json({ ok: true })
@@ -107,17 +116,17 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
   app.post('/chat', async (req, res) => {
     // Return 503 if session or file sync init is still in progress
     if (app.locals.sessionInitError) {
-      res.status(500).json({ error: 'agent init failed' })
+      res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ error: 'agent init failed' })
       return
     }
     if (!app.locals.sessionReady || !app.locals.fileSyncReady) {
-      res.status(503).json({ error: 'agent initializing' })
+      res.status(HTTP_STATUS.SERVICE_UNAVAILABLE).json({ error: 'agent initializing' })
       return
     }
 
     const { message, last_message_id } = req.body as { message?: string; last_message_id?: string }
     if (!message) {
-      res.status(400).json({ error: 'missing message' })
+      res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'missing message' })
       return
     }
 
@@ -153,7 +162,7 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
       })
     } catch (err) {
       logger.error({ event: 'harness.agent_error', error: String(err) })
-      res.status(500).json({ error: 'agent error' })
+      res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ error: 'agent error' })
       return
     }
 

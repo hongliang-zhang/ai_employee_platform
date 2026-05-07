@@ -1,16 +1,15 @@
 import pino from 'pino'
 import * as lark from '@larksuiteoapi/node-sdk'
-import { createDb } from './db.js'
-import { createJwtSigner } from './jwt.js'
-import { createEncryptor } from './encrypt.js'
+import { createDb } from './lib/db.js'
+import { createJwtSigner } from './lib/jwt.js'
+import { createEncryptor } from './lib/encrypt.js'
 import { createConversationManager } from './conversation.js'
-import { createInboundJobsManager } from './inbound-jobs.js'
+import { createImMessageTracker } from './im-message-tracker.js'
 import { createGatewayClient } from './gateway-client.js'
 import { createSandboxOrchestrator } from './sandbox.js'
-import { createTelegramClient } from './telegram.js'
-import { createFeishuClient } from './feishu.js'
+import { createTelegramClient } from './im/telegram.js'
+import { createFeishuClient } from './im/feishu.js'
 import { createProcessor } from './processor.js'
-import { createPollingLoop } from './polling.js'
 import { createId } from '@paralleldrive/cuid2'
 
 const logger = pino({ transport: process.env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined })
@@ -45,20 +44,19 @@ async function main() {
 
   // Decrypt credentials JSON (unified format for all providers)
   const credentials = JSON.parse(enc.decrypt(cfg.credentialsEnc)) as Record<string, string>
-  const channelKey = `im:${cfg.id}`
+  const imConfigId = `im:${cfg.id}`
 
   const conversation = createConversationManager(db)
-  const jobs = createInboundJobsManager(db, INSTANCE_ID)
+  const imMessageTracker = createImMessageTracker(db, INSTANCE_ID)
   const gateway = createGatewayClient(GATEWAY_LOCAL_URL)
   const sandbox = createSandboxOrchestrator({ e2bApiKey: E2B_API_KEY, e2bDomain: E2B_DOMAIN, gatewayUrl: GATEWAY_URL, instanceId: INSTANCE_ID })
 
   logger.info({ event: 'dispatcher.start', provider: cfg.provider, agent_id: agent.id, instance_id: INSTANCE_ID })
 
   if (cfg.provider === 'telegram') {
-    const telegram = createTelegramClient(credentials.bot_token)
-    const processor = createProcessor({ conversation, jobs, gateway, sandbox, im: telegram, jwt, agent })
-    const poller = createPollingLoop({ botToken: credentials.bot_token, channelKey, telegram, onMessage: msg => processor.handle(msg) })
-    poller.start()
+    const { client: telegramClient, listen } = createTelegramClient(credentials.bot_token)
+    const processor = createProcessor({ conversation, imMessageTracker, gateway, sandbox, im: telegramClient, jwt, agent })
+    listen(msg => processor.handle(msg), imConfigId)
 
   } else if (cfg.provider === 'feishu') {
     // Fetch bot open_id for group @mention filtering
@@ -73,11 +71,11 @@ async function main() {
 
     logger.info({ event: 'feishu.bot_identity', bot_open_id: botOpenId })
 
-    const { client: feishuClient, start } = createFeishuClient(credentials.app_id, credentials.app_secret, botOpenId)
-    const processor = createProcessor({ conversation, jobs, gateway, sandbox, im: feishuClient, jwt, agent })
+    const { client: feishuClient, listen } = createFeishuClient(credentials.app_id, credentials.app_secret, botOpenId)
+    const processor = createProcessor({ conversation, imMessageTracker, gateway, sandbox, im: feishuClient, jwt, agent })
 
-    // start() awaits WSClient — keeps the long connection alive, process won't exit
-    await start(msg => processor.handle(msg), channelKey)
+    // listen() awaits WSClient — keeps the long connection alive, process won't exit
+    await listen(msg => processor.handle(msg), imConfigId)
 
   } else {
     throw new Error(`Unsupported provider: ${cfg.provider}`)

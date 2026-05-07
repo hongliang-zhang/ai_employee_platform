@@ -47,49 +47,49 @@ model ImConfig {
 }
 
 model Conversation {
-  id                String    @id
-  agentId           String    @map("agent_id")
-  channelKey        String    @map("channel_key")
-  externalChatId    String    @map("external_chat_id")
-  externalThreadKey String    @default("") @map("external_thread_key")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  lastMessageAt     DateTime? @map("last_message_at")
+  id            String    @id
+  agentId       String    @map("agent_id")
+  imConfigId    String    @map("im_config_id")
+  chatId        String    @map("chat_id")
+  topicId       String    @default("") @map("topic_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastMessageAt DateTime? @map("last_message_at")
 
   agent       Agent        @relation(fields: [agentId], references: [id])
   messages    Message[]
-  inboundJobs InboundJob[]
+  imMessageReceipts ImMessageReceipt[]
 
-  @@unique([channelKey, externalChatId, externalThreadKey])
+  @@unique([imConfigId, chatId, topicId])
   @@map("conversations")
 }
 
 model Message {
-  id                String   @id
-  conversationId    String   @map("conversation_id")
-  role              String
-  contentJson       Json     @map("content_json")
-  source            String
-  externalMessageId String?  @map("external_message_id")
-  metadataJson      Json     @default("{}") @map("metadata_json")
-  createdAt         DateTime @default(now()) @map("created_at")
+  id             String   @id
+  conversationId String   @map("conversation_id")
+  role           String
+  contentJson    Json     @map("content_json")
+  source         String
+  messageId      String?  @map("message_id")
+  metadataJson   Json     @default("{}") @map("metadata_json")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
   @@map("messages")
 }
 
-model InboundJob {
-  id                String    @id
-  channelKey        String    @map("channel_key")
-  externalMessageId String    @map("external_message_id")
-  conversationId    String    @map("conversation_id")
-  status            String
-  leaseOwner        String?   @map("lease_owner")
-  leaseExpiresAt    DateTime? @map("lease_expires_at")
-  receivedAt        DateTime  @default(now()) @map("received_at")
+model ImMessageReceipt {
+  id             String    @id
+  imConfigId     String    @map("im_config_id")
+  messageId      String    @map("message_id")
+  conversationId String    @map("conversation_id")
+  status         String
+  leaseOwner     String?   @map("lease_owner")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  receivedAt     DateTime  @default(now()) @map("received_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
-  @@unique([channelKey, externalMessageId])
-  @@map("inbound_jobs")
+  @@unique([imConfigId, messageId])
+  @@map("im_message_receipts")
 }

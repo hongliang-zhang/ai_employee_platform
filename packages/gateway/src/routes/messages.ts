@@ -35,7 +35,7 @@ export function createMessagesRouter(db: Db) {
         role: r.role,
         content: r.contentJson,
         source: r.source,
-        external_message_id: r.externalMessageId,
+        message_id: r.messageId,
         metadata: r.metadataJson,
         created_at: r.createdAt,
       }))
@@ -92,7 +92,7 @@ export function createMessagesRouter(db: Db) {
             role: m.role,
             contentJson: m.content,
             source: m.source,
-            externalMessageId: m.external_message_id ?? null,
+            messageId: m.message_id ?? null,
             metadataJson: m.metadata ?? {},
             createdAt: new Date(now),
           },

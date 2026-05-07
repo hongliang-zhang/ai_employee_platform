@@ -167,7 +167,7 @@ sequenceDiagram
 - `channel_key` 是消息来源的稳定内部标识，例如 IM 流量使用 `im:<im_config_id>`，dashboard 测试聊天使用 `web:<agent_id>:test`
 - 将 `channel_key + external_chat_id + external_thread_key → conversation_id`
 - 在处理前，按 `(channel_key, external_message_id)` 对入站事件去重
-- 将已接受的消息路由到**按 conversation 分区的串行处理队列**。v1 由 PostgreSQL 的 `inbound_jobs` + lease 机制实现；在更高吞吐场景下，可演进为基于 Redis 的共享队列实现
+- 将已接受的消息路由到**按 conversation 分区的串行处理队列**。v1 由 PostgreSQL 的 `im_message_receipts` + lease 机制实现；在更高吞吐场景下，可演进为基于 Redis 的共享队列实现
 - 确保同一 conversation 内的消息始终串行处理，避免多个 sandbox 实例并发读写同一历史而破坏一致性
 
 **归一化字段说明**
@@ -1088,7 +1088,7 @@ messages (
 )
 
 -- 入站任务表：去重 + 任务状态跟踪 + 崩溃恢复
-inbound_jobs (
+im_message_receipts (
   id,
   channel_key,           -- 来自哪个 binding
   external_message_id,   -- 平台给这条消息的唯一 ID
@@ -1165,15 +1165,15 @@ Conversation A:  [msg1] → [msg2]   ← 串行处理
 Conversation B:  [msg1] → [msg2]   ← 也串行处理，但可与 A 并发
 ```
 
-v1 中，这条“串行队列”由 PostgreSQL 的 `inbound_jobs`、处理状态字段以及 lease 机制实现，而不是依赖进程内存。后续在更高吞吐场景下，可将其演进为基于 Redis 的共享队列。
+v1 中，这条“串行队列”由 PostgreSQL 的 `im_message_receipts`、处理状态字段以及 lease 机制实现，而不是依赖进程内存。后续在更高吞吐场景下，可将其演进为基于 Redis 的共享队列。
 
 这可以防止同一 conversation 的两个 sandbox 同时加载相同历史并产生冲突写入。
 
 ### 投递保证与失败处理
 
-**`inbound_jobs` 表的作用**
+**`im_message_receipts` 表的作用**
 
-`inbound_jobs` 是 dispatcher 处理入站消息的核心防护机制，同时承担两个职责：
+`im_message_receipts` 是 dispatcher 处理入站消息的核心防护机制，同时承担两个职责：
 
 1. **去重**：利用 `UNIQUE (channel_key, external_message_id)` 确保同一条平台消息无论被收到多少次，只会被处理一次
 2. **任务跟踪**：通过 `status` + `lease_owner` + `lease_expires_at` 记录消息处理到哪一步，供崩溃恢复使用
@@ -1182,7 +1182,7 @@ v1 中，这条“串行队列”由 PostgreSQL 的 `inbound_jobs`、处理状�
 
 ```sql
 -- 第一步：消息进来，先尝试插入（冲突则忽略）
-INSERT INTO inbound_jobs
+INSERT INTO im_message_receipts
   (channel_key, external_message_id, conversation_id, status, received_at)
 VALUES
   ($channel_key, $external_message_id, $conversation_id, 'pending', now())
@@ -1191,7 +1191,7 @@ ON CONFLICT (channel_key, external_message_id) DO NOTHING;
 -- 返回 0 行：已见过，直接丢弃
 
 -- 第二步：开始处理，把状态改成 processing
-UPDATE inbound_jobs
+UPDATE im_message_receipts
 SET
   status           = 'processing',
   lease_owner      = $dispatcher_instance_id,
@@ -1201,7 +1201,7 @@ WHERE channel_key = $channel_key
   AND status = 'pending';
 
 -- 第三步：处理完成，标记 done
-UPDATE inbound_jobs
+UPDATE im_message_receipts
 SET status = 'done'
 WHERE channel_key = $channel_key
   AND external_message_id = $external_message_id;
@@ -1213,7 +1213,7 @@ WHERE channel_key = $channel_key
 
 ```sql
 -- 扫描所有崩溃时尚未完成的任务
-SELECT * FROM inbound_jobs
+SELECT * FROM im_message_receipts
 WHERE status = 'processing'
   AND lease_expires_at < now();
 -- 按正常流程重新处理这些任务
@@ -1241,14 +1241,14 @@ WHERE status = 'processing'
 ```text
 Message arrives
   → 校验 webhook / polling event 的真实性
-  → 尝试插入 inbound_jobs（冲突则忽略）——冲突说明已处理过，直接丢弃
-  → 把 inbound_jobs.status 改为 processing
+  → 尝试插入 im_message_receipts（冲突则忽略）——冲突说明已处理过，直接丢弃
+  → 把 im_message_receipts.status 改为 processing
   → 获取 conversation lease
   → 若存在活跃 sandbox：复用
   → 若不存在活跃 sandbox：创建新实例（冷启动约 0.5~1 秒）
   → POST /chat
   → 通过 gateway append assistant messages
-  → 把 inbound_jobs.status 改为 done
+  → 把 im_message_receipts.status 改为 done
   → 释放 lease，并重置 idle timer
   → 若在 idle_timeout_ms 内无新消息：销毁 sandbox
 ```

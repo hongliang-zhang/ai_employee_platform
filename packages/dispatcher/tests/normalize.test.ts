@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeTelegramUpdate, normalizeFeishuEvent } from '../src/normalize.js'
+import { normalizeTelegramUpdate, normalizeFeishuEvent } from '../src/lib/normalize.js'
 
 describe('normalizeTelegramUpdate', () => {
   it('normalizes a private message', () => {
@@ -16,11 +16,11 @@ describe('normalizeTelegramUpdate', () => {
       'im:cfg_abc'
     )
     expect(result).toEqual({
-      channel_key: 'im:cfg_abc',
-      external_chat_id: '99887766',
-      external_thread_key: '',
-      external_message_id: '42',
-      author: { external_user_id: '12345', display_name: 'Alice' },
+      imConfigId: 'im:cfg_abc',
+      chatId: '99887766',
+      topicId: '',
+      messageId: '42',
+      sender: { userId: '12345', displayName: 'Alice' },
       content: { type: 'text', text: 'Hello' },
     })
   })
@@ -72,11 +72,11 @@ describe('normalizeFeishuEvent', () => {
   it('normalizes a DM text message', () => {
     const result = normalizeFeishuEvent(makeFeishuEvent(), CHANNEL_KEY, BOT_OPEN_ID)
     expect(result).toEqual({
-      channel_key: CHANNEL_KEY,
-      external_chat_id: 'oc_chat_abc',
-      external_thread_key: '',
-      external_message_id: 'om_msg_001',
-      author: { external_user_id: 'ou_sender_001', display_name: null },
+      imConfigId: CHANNEL_KEY,
+      chatId: 'oc_chat_abc',
+      topicId: '',
+      messageId: 'om_msg_001',
+      sender: { userId: 'ou_sender_001', displayName: null },
       content: { type: 'text', text: 'hello' },
     })
   })
