@@ -16,7 +16,7 @@ export function createFeishuClient(
   listen: (
     onMessage: (msg: NormalizedMessage) => Promise<void>,
     imConfigId: string
-  ) => Promise<void>
+  ) => Promise<() => void>
 } {
   const larkClient = new lark.Client({ appId, appSecret })
 
@@ -41,7 +41,7 @@ export function createFeishuClient(
   async function listen(
     onMessage: (msg: NormalizedMessage) => Promise<void>,
     imConfigId: string
-  ): Promise<void> {
+  ): Promise<() => void> {
     //  lark.WSClient 是飞书 SDK 封装好的 WebSocket 客户端。它在内部做了：
     //  1. 用 appId / appSecret 向飞书服务器认证
     //  2. 建立 WebSocket 长连接
@@ -60,6 +60,7 @@ export function createFeishuClient(
         },
       }),
     })
+    return () => wsClient.close()
   }
 
   return { client, listen }

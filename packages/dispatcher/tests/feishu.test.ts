@@ -45,3 +45,21 @@ describe('createFeishuClient', () => {
     expect(reactionCreateMock).not.toHaveBeenCalled()
   })
 })
+
+describe('createFeishuClient - listen', () => {
+  it('listen() resolves to a callable stop function', async () => {
+    const mockClose = vi.fn()
+    const mockWsStart = vi.fn().mockResolvedValue(undefined)
+    const { WSClient, EventDispatcher } = await import('@larksuiteoapi/node-sdk')
+    vi.mocked(WSClient).mockImplementation(() => ({ start: mockWsStart, close: mockClose }) as any)
+    vi.mocked(EventDispatcher).mockImplementation(() => ({ register: vi.fn().mockReturnThis() }) as any)
+
+    const { listen } = createFeishuClient('app_id', 'app_secret', 'bot_open_id')
+    const stop = await listen(vi.fn(), 'im:cfg_1')
+
+    expect(typeof stop).toBe('function')
+    expect(mockWsStart).toHaveBeenCalledOnce()
+    stop()
+    expect(mockClose).toHaveBeenCalledOnce()
+  })
+})
