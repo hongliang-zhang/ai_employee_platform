@@ -23,3 +23,4 @@
 | [2026-04-17-mr-claude-review-design.md](./2026-04-17-mr-claude-review-design.md) | Completed | MR Claude Code Review：MR 创建/更新时在 e2b sandbox 中自动触发 Claude inline code review (2026-04-17) |
 | [2026-04-21-fix-sandbox-ready-and-message-sync.md](./2026-04-21-fix-sandbox-ready-and-message-sync.md) | Completed | 修复 sandbox 就绪信号不匹配与 assistant 消息 stale_write (2026-04-21) |
 | [2026-04-21-tencent-sandbox-migration.md](./2026-04-21-tencent-sandbox-migration.md) | Active | 腾讯云沙箱迁移设计：从 e2b.dev 迁移到腾讯云 AGS (2026-04-21) |
+| [2026-05-08-dispatcher-multi-bot-design.md](./2026-05-08-dispatcher-multi-bot-design.md) | Active | Dispatcher 多 bot 支持：单进程管理所有 agent 的全部 IM bot，热加载，独立重试 (2026-05-08) |
