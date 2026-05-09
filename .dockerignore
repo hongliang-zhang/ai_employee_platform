@@ -6,3 +6,5 @@
 .env
 .env.*
 !.env.example
+!packages/gateway/deploy/.env
+!packages/dispatcher/deploy/.env
