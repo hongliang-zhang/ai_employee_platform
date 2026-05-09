@@ -62,6 +62,8 @@ lerna-debug.log*
 .env.*
 !.env.example
 !.env.*.example
+!packages/gateway/deploy/.env
+!packages/dispatcher/deploy/.env
 *.local
 
 # ------------------------------
