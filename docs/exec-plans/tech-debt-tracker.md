@@ -6,12 +6,12 @@ Known issues and deferred work. Each item includes context so future agents can 
 
 ## Active debt
 
-### [TD-001] Sandbox map is in-memory only
+### [TD-001] Per-request sandbox cold start latency
 
 **Location:** `packages/dispatcher/src/sandbox.ts`
-**Impact:** Medium — on dispatcher restart, all active sandboxes are lost. The next user message recreates the sandbox (transparent to users but adds ~30s latency).
-**Why deferred:** MVP scope. Acceptable for single-instance deployment.
-**Resolution path:** Persist sandbox IDs to DB or Redis; on startup, reconnect to existing sandboxes via `Sandbox.connect(sandboxId)`.
+**Impact:** Medium — each chat creates a fresh sandbox and waits for `/health`, which simplifies lifecycle correctness but adds cold-start latency to every user message.
+**Why deferred:** MVP favors stateless sandbox lifecycle over reuse complexity.
+**Resolution path:** Reintroduce reusable sandbox sessions only with explicit health checks, stale-session eviction, and persistence/reconnect semantics.
 
 ---
 
@@ -42,19 +42,6 @@ Known issues and deferred work. Each item includes context so future agents can 
 
 ---
 
-<!-- DOC-GARDENING-CHANGE: 2026-04-16
-  - Updated TD-005: demo-agent rewritten from Python to TypeScript using agent-sdk. The SDK supports configurable systemPrompt via createAgent() parameter, but demo-agent/src/agent.ts still has hardcoded prompt. Partially resolved.
--->
-### [TD-005] `demo-agent` system prompt is hardcoded
-
-**Location:** `packages/demo-agent/src/agent.ts`
-**Impact:** Low — the system prompt `"You are a helpful assistant."` cannot be configured per-agent without modifying the code.
-**Why deferred:** MVP uses a single agent.
-**Resolution path:** Pass system prompt via env var set at sandbox start time in `sandbox.ts`.
-**Status update:** Demo-agent was rewritten in TypeScript using agent-sdk (2026-04-15). The SDK's `createAgent()` accepts `systemPrompt` as a parameter, so the framework now supports configuration. However, demo-agent still hardcodes the prompt.
-
----
-
 ### [TD-006] `append` 乐观并发校验存在竞态窗口
 
 **Location:** `packages/gateway/src/routes/messages.ts` — `POST /append`
@@ -69,7 +56,7 @@ Known issues and deferred work. Each item includes context so future agents can 
 **Location:** `packages/dispatcher/src/jwt.ts`, `packages/dispatcher/src/gateway-client.ts`, `packages/gateway/src/auth.ts`
 **Impact:** Low — 功能正确，但 dispatcher 自签自验 JWT 是不必要的复杂度。JWT 的 scoping 属性（`caller`, `conversation_id`）对可信方无约束力。
 **Why deferred:** 当前功能正常，优先级低于其他重构工作。
-**Resolution path:** Dispatcher ↔ Gateway 改用静态共享密钥（`GATEWAY_INTERNAL_KEY`）认证，JWT 仅用于约束不可信的 sandbox。详见 [docs/design-docs/dispatcher-gateway-auth.md](../design-docs/dispatcher-gateway-auth.md)。
+**Resolution path:** Dispatcher ↔ Gateway 改用静态共享密钥（`INTERNAL_API_KEY`）认证，JWT 仅用于约束不可信的 sandbox。详见 [docs/design-docs/dispatcher-gateway-auth.md](../design-docs/dispatcher-gateway-auth.md)。
 
 ---
 

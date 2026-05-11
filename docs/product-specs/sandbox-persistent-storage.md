@@ -1,5 +1,7 @@
 # Sandbox Persistent File Storage
 
+**Status:** Implemented with divergence — gateway storage routes and agent-sdk TypeScript file sync exist; older Python/demo-agent implementation details in historical plans should not be followed as-is.
+
 > Give sandbox agents a local path (`/persistent/`) that transparently syncs to S3-compatible object storage via presigned URLs. No cloud credentials ever enter the sandbox.
 
 ## Context
@@ -252,8 +254,8 @@ All gateway error responses follow the existing envelope:
 | Component | Changes |
 |-----------|---------|
 | **gateway** | New routes: `/storage/presign`, `/storage/list`. New S3 client. New env vars. |
-| **demo-agent template** | New `file_sync.py`. Rebuild e2b template. |
-| **dispatcher** (`sandbox.ts`) | Startup sequence: run `file_sync.py init` + `watch` before `app.py`. |
+| **agent-sdk / external agent runtime** | SDK-managed file sync support; rebuild the sandbox runtime template/image that consumes the SDK. |
+| **dispatcher** (`sandbox.ts`) | Start the agent runtime and call `/shutdown` before killing the sandbox so the runtime can flush session files. |
 | **config** | `.env.example` updated with S3 vars. |
 | **docs** | `ARCHITECTURE.md`, `SECURITY.md` updated. |
 

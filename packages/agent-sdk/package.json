@@ -1,7 +1,7 @@
 {
   "name": "@alexlikevibe/agent-sdk",
   "version": "0.1.7",
-  "description": "AaaS Agent SDK — build agents that run on the AaaS harness",
+  "description": "Agent Runtime SDK — build agents that run on the Agent Runtime harness",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

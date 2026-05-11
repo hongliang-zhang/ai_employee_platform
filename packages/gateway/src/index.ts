@@ -20,7 +20,7 @@ const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY
 const S3_SECRET_KEY = process.env.S3_SECRET_KEY
 const S3_REGION = process.env.S3_REGION ?? 'us-east-1'
 const ACTIONS_SERVICE_URL = process.env.ACTIONS_SERVICE_URL ?? 'http://localhost:3002'
-const ACTIONS_INTERNAL_KEY = process.env.ACTIONS_INTERNAL_KEY ?? ''
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY ?? ''
 
 export const db = createDb(DATABASE_URL)
 export const auth = createAuthMiddleware(JWT_SECRET)
@@ -44,7 +44,7 @@ if (S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY && S3_SECRET_KEY) {
   app.use('/gateway/storage', auth, createStorageRouter(s3))
 }
 
-app.use('/gateway/actions', auth, createActionsRouter(ACTIONS_SERVICE_URL, ACTIONS_INTERNAL_KEY))
+app.use('/gateway/actions', auth, createActionsRouter(ACTIONS_SERVICE_URL, INTERNAL_API_KEY))
 
 // Only start server when run directly (not imported by tests)
 if (process.env.VITEST === undefined) {

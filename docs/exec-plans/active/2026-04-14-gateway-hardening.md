@@ -1,12 +1,14 @@
 # Gateway Hardening Implementation Plan
 
+<!-- DOC-GARDENING-FLAG: This active plan is stale. It references PostgreSQL/Supabase-era setup and old test filenames. Re-validate against current MySQL/TiDB Prisma schema and gateway tests before executing. -->
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 修复 `packages/gateway` 的高优先级审查问题：跨会话 anchor、非原子 optimistic concurrency、缺少运行时校验、以及错误信息泄漏，并补齐回归测试与文档。
 
 **Architecture:** 保持现有 gateway API 与职责不变，在 HTTP 边界增加统一校验和统一错误 envelope；将 `/gateway/messages/load` 的 `after_message_id` 严格限制在 JWT 对应会话内；将 `/gateway/messages/append` 改为“同一事务内检查 head + 写入消息”，并通过锁定 `conversations` 行串行化同一会话的写入。
 
-**Tech Stack:** Node.js, Express, Prisma, PostgreSQL, Vitest, Supertest, jsonwebtoken
+**Tech Stack:** Node.js, Express, Prisma, MySQL/TiDB, Vitest, Supertest, jsonwebtoken
 
 ---
 
@@ -43,7 +45,7 @@
 
 ---
 
-### Task 1: Prerequisite checklist — verify the Supabase-backed test database
+### Task 1: Prerequisite checklist — verify the MySQL/TiDB test database
 
 **Files:**
 - Verify: `.env.example`
@@ -62,8 +64,7 @@ test -f .env || cp .env.example .env
 ```
 
 For the gateway test flow, verify `.env` contains at minimum:
-- `DATABASE_URL` = Supabase pooler URL
-- `DIRECT_URL` = Supabase direct URL
+- `DATABASE_URL` = MySQL/TiDB URL compatible with `packages/db/prisma/schema.prisma`
 
 If you also plan to run the interactive setup script or the full local stack later, also verify:
 - `JWT_SECRET`
@@ -83,14 +84,14 @@ test -L packages/db/.env && [ "$(readlink packages/db/.env)" = "../../.env" ] ||
 
 Expected: `packages/db/.env` is a symlink to `../../.env`.
 
-- [ ] **Step 3: Apply migrations against Supabase**
+- [ ] **Step 3: Apply migrations against MySQL/TiDB**
 
 Run:
 ```bash
 pnpm --filter @aaas/db migrate:deploy
 ```
 
-Expected: schema is applied successfully via `DIRECT_URL`.
+Expected: schema is applied successfully via `DATABASE_URL`.
 
 - [ ] **Step 4: Capture the current gateway baseline**
 
@@ -99,7 +100,7 @@ Run:
 pnpm --filter @aaas/gateway test
 ```
 
-Expected: DB-backed tests actually execute against the configured Supabase database; record current failures before changing code.
+Expected: DB-backed tests actually execute against the configured MySQL/TiDB database; record current failures before changing code.
 
 - [ ] **Step 5: Only if you need the full local app flow later, run the interactive setup script**
 

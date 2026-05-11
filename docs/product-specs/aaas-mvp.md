@@ -1,4 +1,4 @@
-# Agent as a Service — 设计文档
+# Agent Runtime — 设计文档
 
 **日期：** 2026-03-30  
 **状态：** 草稿  
@@ -8,7 +8,7 @@
 
 ## 1. 概述
 
-Agent as a Service（AaaS）是一个多租户 SaaS 平台，让用户可以部署可通过 IM 渠道（Telegram、飞书、Slack 等）访问的 AI agent。用户通过 Web dashboard 创建 agent 实例、配置其 IM 凭证，平台负责其余工作——拉起沙箱化的 agent 运行时、路由消息，并持久化对话历史。
+Agent Runtime 是一个用于部署和运营沙箱化 AI agent 的平台，让用户可以部署可通过 IM 渠道（Telegram、飞书、Slack 等）访问的 AI agent。用户通过 Web dashboard 创建 agent 实例、配置其 IM 凭证，平台负责其余工作——拉起沙箱化的 agent 运行时、路由消息，并持久化对话历史。
 
 该平台被设计为**开放**的：第三方开发者可以构建并发布自己的 agent 类型到 marketplace。用户浏览 marketplace、选择某种 agent 类型、配置其 IM 渠道后，agent 即可上线——无需了解底层基础设施。
 

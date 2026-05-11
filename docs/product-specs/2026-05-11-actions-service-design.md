@@ -179,7 +179,7 @@ Gateway 不感知有哪些 action，不解析 `input` 的具体结构。
 
 ### 4.3 内部认证（Gateway → Actions Service）
 
-- 使用共享密钥 `ACTIONS_INTERNAL_KEY`，通过 `X-Internal-Key` request header 传递
+- 使用共享密钥 `INTERNAL_API_KEY`，通过 `X-Internal-Key` request header 传递
 - Actions Service 验证此 header；若缺失或错误，返回 `401 { error: { code: "unauthorized", ... } }`
 - 与现有 dispatcher→gateway 的内部认证模式一致，不引入新机制
 
