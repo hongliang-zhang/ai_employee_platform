@@ -1,3 +1,14 @@
+export interface ActionDefinition {
+  name: string
+  description: string
+  inputSchema: {
+    type: string
+    properties?: Record<string, { type: string; description?: string }>
+    required?: string[]
+    [key: string]: unknown
+  }
+}
+
 export interface GatewayMessage {
   role: string
   content: Array<{ type: string; text?: string; [key: string]: unknown }>
@@ -48,6 +59,19 @@ export class GatewayClient {
     return res.json() as Promise<T>
   }
 
+  private async get<T>(path: string): Promise<T> {
+    const res = await fetch(`${this.gatewayUrl}${path}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${this.token}` },
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      const code = (data as any)?.error?.code ?? `http_${res.status}`
+      throw new Error(code)
+    }
+    return res.json() as Promise<T>
+  }
+
   async appendMessages(
     expectedLastMessageId: string | null,
     messages: GatewayMessage[],
@@ -66,5 +90,15 @@ export class GatewayClient {
   async listFiles(prefix: 'shared' | 'conversation'): Promise<RemoteFile[]> {
     const data = await this.request<{ files: RemoteFile[] }>('/gateway/storage/list', { prefix })
     return data.files
+  }
+
+  async invokeAction(action: string, input: unknown): Promise<unknown> {
+    const res = await this.request<{ result: unknown }>('/gateway/actions/invoke', { action, input })
+    return res.result
+  }
+
+  async listActions(): Promise<ActionDefinition[]> {
+    const res = await this.get<{ actions: ActionDefinition[] }>('/gateway/actions/list')
+    return res.actions
   }
 }

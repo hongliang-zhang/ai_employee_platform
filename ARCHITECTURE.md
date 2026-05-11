@@ -14,26 +14,30 @@
 
 ## System topology
 
-```
-Telegram
-   │  long-polling
-   ▼
-┌─────────────────────────────────────────────────────┐
-│  Trusted Zone                                       │
-│                                                     │
-│  ┌────────────┐   JWT-signed   ┌─────────────────┐  │
-│  │ dispatcher │ ─────────────▶ │    gateway      │  │
-│  │  Node.js   │                │    Node.js      │  │
-│  └─────┬──────┘                └────────┬────────┘  │
-│        │ e2b SDK                        │            │
-└────────┼────────────────────────────────┼────────────┘
-         │                                │
-         ▼                                ├──▶ MySQL
-  ┌─────────────┐                         ├──▶ LLM API (z.ai/glm-5.1)
-  │ demo-agent  │  JWT-signed requests    │
-  │ TypeScript  │ ───────────────────────▶┘
-  │ (e2b sandbox│
-  └─────────────┘
+```mermaid
+flowchart TD
+    Telegram
+
+    subgraph trusted["Trusted Zone"]
+        dispatcher["dispatcher\nNode.js"]
+        gateway["gateway\nNode.js"]
+        actions["Actions Service\nNode.js :3002"]
+    end
+
+    sandbox["demo-agent\nTypeScript\n(e2b sandbox)"]
+
+    MySQL[("MySQL")]
+    LLM["LLM API\n(z.ai)"]
+    ThirdParty[("三方 API\n搜索 / 天气等")]
+
+    Telegram -- "long-polling" --> dispatcher
+    dispatcher -- "JWT-signed" --> gateway
+    dispatcher -- "e2b SDK" --> sandbox
+    sandbox -- "JWT-signed requests" --> gateway
+    gateway --> MySQL
+    gateway --> LLM
+    gateway -- "X-Internal-Key" --> actions
+    actions --> ThirdParty
 ```
 
 ## Services
@@ -75,6 +79,17 @@ Telegram
 - `SESSION_TOKEN` has `caller: 'sandbox'` claim, scoped to one conversation
 
 **Why TypeScript/Express:** The agent-sdk provides a complete harness for building agents. Demo-agent uses the SDK's `createAgent()` API and is a template for third-party agent developers.
+
+### Actions Service (`packages/actions`)
+
+**Responsibility:** Unified gateway for third-party API integrations. Holds all external API keys; exposes internal-only endpoints for gateway to invoke tools.
+
+- `GET /actions/list` — return the list of available actions and their parameter schemas
+- `POST /actions/invoke` — invoke a named action (e.g. web search, weather lookup) and return the result
+
+**Auth:** All requests from gateway must carry the `X-Internal-Key` shared secret. The service is not reachable from sandboxes or the public internet.
+
+**Why a dedicated service:** Keeps third-party API keys out of gateway (single-responsibility) and out of sandboxes (security). Centralizing integrations here makes it easy to add, update, or rotate keys without touching gateway or agent code.
 
 ## Database schema
 
@@ -120,6 +135,9 @@ Dispatcher maintains an in-memory `lastMessageId` cache per conversation, update
 - Dispatcher → LLM directly: **never**. All LLM calls go through gateway.
 - Gateway → e2b SDK: **never**. Sandbox lifecycle is dispatcher's concern.
 - Sandbox → Telegram directly: **never**. All IM replies go through dispatcher.
+- Sandbox → Actions Service directly: **never**. Sandboxes only communicate with gateway; Actions Service is not visible to sandboxes.
+- Actions Service → sandbox directly: **never**.
+- Gateway → third-party APIs directly: **should not happen**. All third-party integrations are implemented inside Actions Service.
 
 ## Current limitations (MVP scope)
 
