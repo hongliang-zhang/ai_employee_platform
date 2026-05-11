@@ -1,10 +1,7 @@
-# Architecture
+# Agent Runtime 架构
 
-> Top-level map of z-mono's domain structure, service boundaries, and key design decisions. For deeper design rationale see [docs/design-docs/core-beliefs.md](./docs/design-docs/core-beliefs.md).
+> 本文是 z-mono 的顶层架构地图，说明领域结构、服务边界和关键设计决策。更深入的设计原则见 [docs/design-docs/core-beliefs.md](./docs/design-docs/core-beliefs.md)。
 
-<!-- DOC-GARDENING-CHANGE: 2026-04-29
-  - Updated demo-agent description: Python/Flask → TypeScript/Express with agent-sdk
--->
 <!-- DOC-GARDENING-CHANGE: 2026-04-17
   - Added users table to Key tables list
   - Fixed database reference: PostgreSQL → MySQL (matches schema.prisma provider)
@@ -12,137 +9,162 @@
   - Clarified persistent file storage status: gateway routes implemented, sandbox daemon not yet implemented
 -->
 
-## System topology
+## 系统拓扑
 
 ```mermaid
 flowchart TD
-    Telegram
+    Telegram["Telegram"]
+    Feishu["飞书"]
 
-    subgraph trusted["Trusted Zone"]
-        dispatcher["dispatcher\nNode.js"]
-        gateway["gateway\nNode.js"]
-        actions["Actions Service\nNode.js :3002"]
+    subgraph trusted["可信区（Trusted Zone）"]
+        dispatcher["dispatcher\nIM 接入 / sandbox 编排"]
+        gateway["gateway\n会话 / LLM / 文件 / actions 代理"]
+        actions["Actions Service\n三方 API 集成 :3002"]
+        MySQL[("MySQL/TiDB")]
     end
 
-    sandbox["demo-agent\nTypeScript\n(e2b sandbox)"]
+    subgraph sandboxCloud["sandbox 后端（E2B / AGS）"]
+        sandboxApi["E2B/AGS 控制面 API"]
+        sandbox["agent sandbox runtime\n外部 agent-hub / SDK 镜像"]
+    end
 
-    MySQL[("MySQL")]
-    LLM["LLM API\n(z.ai)"]
+    LLM["LLM API\nz.ai"]
+    ObjectStorage[("S3/COS 对象存储")]
     ThirdParty[("三方 API\n搜索 / 天气等")]
 
-    Telegram -- "long-polling" --> dispatcher
-    dispatcher -- "JWT-signed" --> gateway
-    dispatcher -- "e2b SDK" --> sandbox
-    sandbox -- "JWT-signed requests" --> gateway
-    gateway --> MySQL
-    gateway --> LLM
-    gateway -- "X-Internal-Key" --> actions
-    actions --> ThirdParty
+    Telegram <--> |"poll updates / send reply"| dispatcher
+    Feishu <--> |"events / send reply"| dispatcher
+
+    dispatcher <--> |"IM 配置 / receipt / conversation 定位"| MySQL
+    dispatcher --> |"dispatcher JWT\nGATEWAY_LOCAL_URL"| gateway
+    dispatcher --> |"create / start / stop\ne2b/AGS SDK"| sandboxApi
+    sandboxApi --> |"创建运行时"| sandbox
+    dispatcher --> |"/health /chat"| sandbox
+
+    sandbox --> |"sandbox JWT\nGATEWAY_URL"| gateway
+
+    gateway <--> |"messages / agents / conversations"| MySQL
+    gateway --> |"LLM_API_KEY"| LLM
+    gateway --> |"presigned URL"| ObjectStorage
+    gateway --> |"X-Internal-Key"| actions
+    actions --> |"provider API key"| ThirdParty
 ```
 
-## Services
+## 服务边界
 
-### gateway (`packages/gateway`)
+### gateway（`packages/gateway`）
 
-**Responsibility:** The single trusted backend. Owns all state and external access.
+**定位：** 可信后端入口，负责 sandbox 可访问的状态、LLM、文件和 Actions 代理能力。
 
-- `POST /gateway/messages/load` — load conversation history for a conversation
-- `POST /gateway/messages/append` — append messages (with optimistic concurrency via `expected_last_message_id`)
-- `POST /gateway/llm` — proxy to upstream LLM API (currently glm-5.1 at z.ai)
-- `POST /gateway/storage/presign` — generate presigned S3 URLs for file upload/download (scoped to agent/conversation)
-- `POST /gateway/storage/list` — list files under agent's shared or conversation prefix
-- `GET /health`
+主要能力：
 
-**Why gateway owns everything:** Sandboxes run in the cloud (e2b) and are untrusted. All storage and LLM keys must remain in the trusted zone. Gateway is the single chokepoint that enforces auth and scoping.
+- `POST /gateway/messages/load` — 读取指定会话的历史消息
+- `POST /gateway/messages/append` — 追加消息，并通过 `expected_last_message_id` 做乐观并发控制
+- `POST /gateway/llm` — 代理到上游 LLM API（当前默认 z.ai `glm-5.1`）
+- `POST /gateway/storage/presign` — 生成受 agent/conversation 作用域约束的 S3 预签名 URL
+- `POST /gateway/storage/list` — 列出 agent shared 或 conversation 前缀下的文件
+- `GET /gateway/actions/list` / `POST /gateway/actions/invoke` — 将 sandbox 的工具调用代理到 Actions Service
+- `GET /health` — 健康检查
 
-### dispatcher (`packages/dispatcher`)
+**为什么 gateway 统一承载这些能力：** sandbox 运行在云端且不可信，不能接触数据库、LLM Key、对象存储密钥或三方 API Key。gateway 是可信区内的统一鉴权和作用域检查点。
 
-**Responsibility:** IM channel integration and sandbox lifecycle.
+### dispatcher（`packages/dispatcher`）
 
-- Polls Telegram for new messages (long-polling)
-- Normalizes messages into a canonical `NormalizedMessage` shape
-- Deduplicates via `inbound_jobs` table (exactly-once processing guarantee)
-- Manages the sandbox map: one sandbox per `conversation_id`, created on demand, destroyed after idle timeout
-- Appends user messages to gateway before dispatching to sandbox
-- After sandbox replies: sends Telegram message, marks job done, fire-and-forget syncs `lastMessageId` cache
+**定位：** IM 接入层和 sandbox 生命周期编排层。
 
-**Why dispatcher manages sandbox lifecycle (not gateway):** Sandbox lifecycle is tied to IM sessions and conversation state, which dispatcher owns. Gateway is stateless between requests.
+主要能力：
 
-### demo-agent (`packages/demo-agent`)
+- 监听已启用的 IM 配置（Telegram long-polling；飞书事件/长连接）
+- 将各平台消息规范化为统一的 `NormalizedMessage`
+- 通过 `im_message_receipts` 表做消息抢占、去重和 lease 管理
+- 按请求创建 sandbox，等待 `/health`，调用 `/chat`，完成后销毁 sandbox
+- 在调用 sandbox 前，把用户消息通过 gateway 写入历史
+- sandbox 回复后，把结果发送回 IM，并标记 receipt 完成
+- 维护本地 `lastMessageId` 缓存，辅助 gateway 消息写入的乐观并发控制
 
-**Responsibility:** Reference agent runtime, packaged as an e2b template.
+**为什么 dispatcher 管理 sandbox 生命周期：** sandbox 生命周期与 IM 消息处理、会话定位和用户回复强相关，这些都属于 dispatcher 的职责。gateway 不负责启动或回收 sandbox。
 
-- Built with `@alexlikevibe/agent-sdk` (TypeScript/Express)
-- Express app listening on port 8080
-- On `POST /chat` (handled by SDK): loads history from gateway → calls LLM via gateway → appends assistant reply → returns text
-- Holds no credentials; receives `SESSION_TOKEN` (JWT) and `SESSION_ID` via env vars at sandbox start
-- `SESSION_TOKEN` has `caller: 'sandbox'` claim, scoped to one conversation
+### Agent sandbox runtime
 
-**Why TypeScript/Express:** The agent-sdk provides a complete harness for building agents. Demo-agent uses the SDK's `createAgent()` API and is a template for third-party agent developers.
+**定位：** 在隔离环境中运行不可信 agent 逻辑，并只通过 gateway 访问平台能力。
 
-### Actions Service (`packages/actions`)
+约束：
 
-**Responsibility:** Unified gateway for third-party API integrations. Holds all external API keys; exposes internal-only endpoints for gateway to invoke tools.
+- agent runtime 代码不在本仓库维护，当前主要来自外部 `agent-sub` 项目或基于 `agent-sdk` 的镜像
+- runtime 应遵循 agent SDK/harness 约定
+- 收到 `POST /chat` 后：从 gateway 读取历史 → 通过 gateway 调 LLM → 追加 assistant 回复 → 返回文本
+- 不持有平台密钥；启动时只接收 `SESSION_TOKEN` 和 `SESSION_ID`
+- `SESSION_TOKEN` 是 `caller: 'sandbox'` 的 JWT，并被限制在单个 conversation 范围内
 
-- `GET /actions/list` — return the list of available actions and their parameter schemas
-- `POST /actions/invoke` — invoke a named action (e.g. web search, weather lookup) and return the result
+### Actions Service（`packages/actions`）
 
-**Auth:** All requests from gateway must carry the `X-Internal-Key` shared secret. The service is not reachable from sandboxes or the public internet.
+**定位：** 可信区内的三方 API 集成服务，统一持有三方 API Key，并只接受 gateway 的内部调用。
 
-**Why a dedicated service:** Keeps third-party API keys out of gateway (single-responsibility) and out of sandboxes (security). Centralizing integrations here makes it easy to add, update, or rotate keys without touching gateway or agent code.
+主要能力：
 
-## Database schema
+- `GET /actions/list` — 返回可用 action 及参数 schema
+- `POST /actions/invoke` — 执行指定 action，例如网页搜索、天气查询
 
-See [docs/generated/db-schema.md](./docs/generated/db-schema.md) for the full annotated schema.
+**鉴权：** gateway 调用 Actions Service 时必须携带共享密钥 `X-Internal-Key`。Actions Service 不对 sandbox 或公网直接开放。
 
-Key tables:
+**为什么独立为服务：** 三方 API 集成会持续增长。把它们放进 Actions Service 可以避免 gateway 膨胀，也能把三方 API Key 与 gateway 自身密钥隔离。新增、更新或轮换三方集成时，不需要修改 sandbox 代码，也尽量不触碰 gateway。
 
-| Table | Purpose |
-|-------|---------|
-| `users` | Platform users (not yet wired up in MVP) |
-| `agents` | Agent definitions (e2b template, port, idle timeout) |
-| `im_configs` | IM channel config per agent (credentials encrypted at rest) |
-| `conversations` | One row per (channel_key, external_chat_id, thread) |
-| `messages` | Full conversation history (role, content_json, source) |
-| `inbound_jobs` | Dedup + at-least-once processing with lease-based recovery |
+## 数据库模型
 
-## Auth model
+完整 schema 见 [docs/generated/db-schema.md](./docs/generated/db-schema.md)。
 
-All gateway requests require a JWT signed with `JWT_SECRET`.
+关键表：
 
-| Caller | `caller` claim | Token TTL | Allowed sources in `/messages/append` |
-|--------|----------------|-----------|--------------------------------------|
-| dispatcher | `dispatcher` | 60s | `im` only |
-| sandbox | `sandbox` | 24h | `sandbox` only |
+| 表 | 作用 |
+|----|------|
+| `users` | 平台用户；MVP 阶段尚未完整接入 |
+| `agents` | agent 定义，包括 sandbox template、端口和超时配置 |
+| `im_configs` | agent 的 IM 渠道配置，凭证加密存储 |
+| `conversations` | 每个 `(channel_key, external_chat_id, thread)` 对应一条会话 |
+| `messages` | 完整对话历史，包含 role、content_json、source |
+| `im_message_receipts` | IM 消息去重、处理状态、lease 和恢复依据 |
 
-**Why two caller types:** Prevents a compromised sandbox from injecting `im`-sourced messages and impersonating users. The `source` field on messages is enforced server-side against the `caller` claim — the sandbox cannot forge user messages.
+## 鉴权模型
 
-## Persistent file storage
+所有 gateway 非健康检查请求都必须携带由 `JWT_SECRET` 签发的 JWT。
 
-Gateway provides presigned S3 URLs via `/gateway/storage/presign` and `/gateway/storage/list` routes, scoped to the requesting agent/conversation. The sandbox side file sync daemon is not yet implemented.
+| 调用方 | `caller` claim | Token TTL | `/messages/append` 允许的 source |
+|--------|----------------|-----------|-----------------------------------|
+| dispatcher | `dispatcher` | 60 秒 | `im` |
+| sandbox | `sandbox` | 24 小时 | `sandbox` |
 
-Planned storage layout: `agents/{agent_id}/shared/` (cross-conversation) and `agents/{agent_id}/conversations/{conv_id}/` (conversation-scoped). See `docs/product-specs/sandbox-persistent-storage.md` for full design.
+**为什么区分 caller：** 如果 sandbox 被攻破，它也不能伪造 `im` 来源消息、冒充用户写入历史。gateway 会根据 JWT 的 `caller` claim 在服务端校验 message `source`。
 
-## Optimistic concurrency on message history
+## 持久化文件存储
 
-`/messages/append` requires `expected_last_message_id`. If the actual head differs, it returns `409 stale_write`. This prevents interleaved writes from dispatcher and sandbox corrupting message order.
+gateway 已提供 `/gateway/storage/presign` 和 `/gateway/storage/list`，通过 S3 兼容对象存储实现文件上传、下载和列表能力。所有路径都受 agent/conversation 作用域限制。
 
-Dispatcher maintains an in-memory `lastMessageId` cache per conversation, updated after each append and lazily synced after sandbox replies.
+规划中的存储布局：
 
-## Key boundaries (do not cross)
+- `agents/{agent_id}/shared/` — agent 级共享文件
+- `agents/{agent_id}/conversations/{conv_id}/` — conversation 级文件
 
-- Sandbox → PostgreSQL directly: **never**. All DB access goes through gateway API.
-- Dispatcher → LLM directly: **never**. All LLM calls go through gateway.
-- Gateway → e2b SDK: **never**. Sandbox lifecycle is dispatcher's concern.
-- Sandbox → Telegram directly: **never**. All IM replies go through dispatcher.
-- Sandbox → Actions Service directly: **never**. Sandboxes only communicate with gateway; Actions Service is not visible to sandboxes.
-- Actions Service → sandbox directly: **never**.
-- Gateway → third-party APIs directly: **should not happen**. All third-party integrations are implemented inside Actions Service.
+agent SDK 已包含 file-sync 支持；具体 sandbox runtime 需要在启动时启用同步逻辑。完整设计见 `docs/product-specs/sandbox-persistent-storage.md`。
 
-## Current limitations (MVP scope)
+## 消息历史的乐观并发控制
 
-- Single active agent at a time (dispatcher loads one `agents` row)
-- Single dispatcher instance (no horizontal scaling; `inbound_jobs` lease recovery exists but untested at scale)
-- Sandbox map is in-memory (lost on dispatcher restart; next message recreates sandbox)
-- No dashboard / web UI yet
-- Telegram and Feishu supported (`im_configs.provider` IN ('telegram', 'feishu'))
+`/gateway/messages/append` 要求调用方提供 `expected_last_message_id`。如果数据库中的实际会话尾部不一致，gateway 返回 `409 stale_write`。
+
+这样可以避免 dispatcher 和 sandbox 并发写入时破坏消息顺序。dispatcher 会为每个 conversation 维护内存态 `lastMessageId` 缓存，并在 sandbox 回复后异步同步。
+
+## 不可跨越的边界
+
+- sandbox → MySQL/TiDB：**禁止**。所有数据库访问必须通过 gateway API。
+- dispatcher → LLM：**禁止**。所有 LLM 调用必须通过 gateway。
+- gateway → e2b/AGS SDK：**禁止**。sandbox 生命周期由 dispatcher 管理。
+- sandbox → Telegram/飞书：**禁止**。所有 IM 回复必须由 dispatcher 发送。
+- sandbox → Actions Service：**禁止**。sandbox 只能访问 gateway；Actions Service 对 sandbox 不可见。
+- Actions Service → sandbox：**禁止**。
+- gateway → 三方 API：**原则上不做**。三方集成统一放在 Actions Service。
+
+## 当前限制（MVP 范围）
+
+- 暂无 dashboard / Web UI
+- dispatcher 已支持 active `im_configs` 的 Telegram 和飞书，但多实例高可用仍需要完善 stale `im_message_receipts` lease 的恢复循环
+- 当前每次请求都会创建新 sandbox，生命周期简单但有冷启动延迟
+- `lastMessageId` 缓存在 dispatcher 内存中；dispatcher 重启后会从 gateway 历史中懒恢复

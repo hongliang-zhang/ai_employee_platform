@@ -41,7 +41,7 @@ const allowedSource = caller === 'dispatcher' ? 'im' : 'sandbox'
 
 具体做法：
 
-1. 新增环境变量 `GATEWAY_INTERNAL_KEY`（随机字符串，dispatcher 和 gateway 共享）
+1. 复用环境变量 `INTERNAL_API_KEY`（随机字符串，由 trusted services 共享；当前已用于 gateway → Actions Service）
 2. Gateway `auth.ts` 支持两种认证方式：
    - `Authorization: Bearer <JWT>` — sandbox 请求，走现有的 `jwt.verify` + `caller` + `conversation_id` 校验
    - `X-Internal-Key: <key>` — dispatcher 请求，简单比对共享密钥
@@ -56,4 +56,4 @@ const allowedSource = caller === 'dispatcher' ? 'im' : 'sandbox'
 - `packages/dispatcher/src/gateway-client.ts` — header 改为 `X-Internal-Key`
 - `packages/dispatcher/src/processor.ts` — 不再需要签发 `dispatcherToken`
 - `packages/gateway/src/auth.ts` — 支持双认证模式
-- 新增 `GATEWAY_INTERNAL_KEY` 环境变量（`.env.example` + 两端配置）
+- 复用 `INTERNAL_API_KEY` 环境变量（`.env.example` + 两端配置）

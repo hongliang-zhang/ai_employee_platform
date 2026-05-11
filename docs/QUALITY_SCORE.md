@@ -14,7 +14,7 @@ Scale: ✅ Good · ⚠️ Partial · ❌ Missing
 | Area | Score | Notes |
 |------|-------|-------|
 | Auth middleware | ✅ | `tests/auth.test.ts` covers valid token, missing token, expired token |
-| `POST /messages/load` | ✅ | `tests/messages.test.ts` covers load with/without `after_message_id` |
+| `POST /messages/load` | ✅ | `tests/messages.integration.test.ts` covers load with/without `after_message_id` |
 | `POST /messages/append` | ✅ | Covers happy path, stale write (409), caller/source mismatch |
 | `POST /gateway/llm` | ✅ | `tests/llm.test.ts` covers proxy, model validation, upstream error |
 | Optimistic concurrency under concurrent writes | ❌ | No concurrent-write test; stale_write path only tested sequentially |
@@ -26,9 +26,9 @@ Scale: ✅ Good · ⚠️ Partial · ❌ Missing
 
 | Area | Score | Notes |
 |------|-------|-------|
-| Message deduplication | ⚠️ | `inbound-jobs` unit tested but no integration test for duplicate Telegram updates |
-| Sandbox getOrCreate | ❌ | No tests — e2b SDK calls are not mocked |
-| Processor end-to-end | ❌ | No integration test covering the full message → reply flow |
+| Message deduplication | ⚠️ | `im-message-tracker` unit/integration tests cover claim behavior, but no end-to-end duplicate IM update test |
+| Per-request sandbox orchestration | ✅ | `tests/sandbox.test.ts` mocks e2b SDK calls, health polling, chat, shutdown, and kill paths |
+| Processor end-to-end | ❌ | No integration test covering the full IM message → gateway append → sandbox reply → IM send flow |
 | Retry / backoff logic | ⚠️ | `utils.ts` retryWithBackoff has tests; retry paths in processor are not independently tested |
 | Stale lease recovery | ❌ | Recovery index exists but recovery loop not implemented (see TD-002) |
 
@@ -46,17 +46,7 @@ Scale: ✅ Good · ⚠️ Partial · ❌ Missing
 
 ---
 
-## demo-agent
-
-| Area | Score | Notes |
-|------|-------|-------|
-| `/chat` endpoint | ❌ | No tests — gateway calls are not mocked |
-| `/health` endpoint | ❌ | No tests |
-
----
-
 ## Overall gaps to address before scaling
 
 1. Dispatcher processor integration test (mock gateway + mock Telegram)
 2. Concurrent append test for gateway
-3. demo-agent unit tests with mocked gateway client

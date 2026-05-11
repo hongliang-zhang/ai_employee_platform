@@ -5,9 +5,9 @@ import { registry } from './registry.js'
 export const logger = pino({ transport: process.env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined })
 
 const PORT = parseInt(process.env.PORT ?? '3002')
-const ACTIONS_INTERNAL_KEY = process.env.ACTIONS_INTERNAL_KEY
-if (!ACTIONS_INTERNAL_KEY) {
-  logger.error('ACTIONS_INTERNAL_KEY is not set — refusing to start')
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
+if (!INTERNAL_API_KEY) {
+  logger.error('INTERNAL_API_KEY is not set — refusing to start')
   process.exit(1)
 }
 
@@ -16,7 +16,7 @@ app.use(express.json())
 
 function internalKeyMiddleware(req: Request, res: Response, next: NextFunction): void {
   const key = req.headers['x-internal-key']
-  if (key !== ACTIONS_INTERNAL_KEY) {
+  if (key !== INTERNAL_API_KEY) {
     res.status(401).json({ error: { code: 'unauthorized', message: 'Invalid or missing X-Internal-Key', retryable: false, details: {} } })
     return
   }

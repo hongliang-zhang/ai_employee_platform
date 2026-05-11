@@ -1,5 +1,0 @@
-import { createAgent } from '@alexlikevibe/agent-sdk'
-
-createAgent({
-  systemPrompt: 'You are a helpful assistant.',
-})

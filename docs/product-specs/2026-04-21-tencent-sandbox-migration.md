@@ -1,14 +1,14 @@
 # 腾讯云沙箱迁移设计
 
 **日期：** 2026-04-21
-**状态：** 待审阅
+**状态：** Completed — implemented; kept as design history
 **分支：** `feature/migrate-tencent-sandbox`（基于 `origin/master`）
 
 ---
 
 ## 1. 背景与目标
 
-当前 AaaS 平台的沙箱使用 e2b 官方云服务（`e2b.app`）。需要切换到腾讯云提供的兼容 e2b 的沙箱服务（`ap-beijing.tencentags.com`）。
+当前 Agent Runtime 平台的沙箱使用 e2b 官方云服务（`e2b.app`）。需要切换到腾讯云提供的兼容 e2b 的沙箱服务（`ap-beijing.tencentags.com`）。
 
 **核心发现：** 腾讯云实现了兼容 e2b 的服务端协议（腾讯云文档仅展示了 Python SDK 用法）。Node.js 端的 `@e2b/code-interpreter` SDK 内部通过 `E2B_DOMAIN` 环境变量控制 API 端点和沙箱连接域名，设置该变量即可路由到腾讯云后端。因此这是一个**配置切换**，不是 SDK 替换。
 
@@ -41,7 +41,7 @@ static get domain() {
 | 8 | `packages/dispatcher/src/processor.ts` | 修改 | 新增 503 重试逻辑 — AGS 沙箱启动较慢，创建后短时间内 `/chat` 可能返回 503 |
 | 9 | `packages/agent-sdk/src/gateway-llm-adapter.ts` | 重构 | 改用 `@mariozechner/pi-ai` 的 `createAssistantMessageEventStream()`，消除重复实现 |
 | 10 | `packages/sandbox-base/` | 新增 | Dockerfile + s6-overlay 进程管理，适配腾讯云 AGS 的沙箱运行时基础镜像 |
-| 11 | `packages/demo-agent/Dockerfile` | 重构 | 改为基于 sandbox-base 镜像构建，使用 s6-overlay 管理进程 |
+| 11 | 外部 agent runtime 镜像（agent-sub） | 重构 | 改为基于 sandbox-base 镜像构建，使用 s6-overlay 管理进程 |
 
 ## 3. 详细设计
 
@@ -120,7 +120,7 @@ const sandbox = await retryWithBackoff(() =>
 | `scripts/setup.ts` | 不读 `E2B_TEMPLATE_ID`；交互式询问沙箱工具名并写入 DB |
 | `packages/agent-sdk/` | 不涉及沙箱创建 |
 | `packages/gateway/` | 不涉及沙箱 |
-| `packages/demo-agent/` | 运行在沙箱内部，不创建沙箱 |
+| 外部 agent runtime（agent-sub） | 运行在沙箱内部，不创建沙箱 |
 | `sandboxDomain` URL 拼接 | SDK 从服务端响应获取 `sandboxDomain`（`res.data.domain`），腾讯云会返回自己的域名，无需改动 URL 拼接逻辑 |
 
 ## 5. 验证计划

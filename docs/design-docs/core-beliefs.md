@@ -14,9 +14,9 @@ All storage access, LLM calls, and credential use flow through gateway. No other
 
 ## 2. Sandboxes are stateless and ephemeral
 
-A sandbox holds no persistent state. It may be killed and recreated at any time without data loss. All state lives in PostgreSQL via gateway.
+A sandbox holds no persistent platform state. It may be killed and recreated at any time without data loss. Durable state lives in MySQL/TiDB via gateway, while sandbox-local files may be synced through gateway-issued presigned URLs.
 
-**Why:** Sandboxes have a finite idle timeout and can be lost on dispatcher restart. Designing for statelessness makes sandbox death a non-event rather than an incident.
+**Why:** The dispatcher currently creates a fresh sandbox per chat request. Designing for statelessness makes sandbox death a non-event rather than an incident.
 
 ---
 

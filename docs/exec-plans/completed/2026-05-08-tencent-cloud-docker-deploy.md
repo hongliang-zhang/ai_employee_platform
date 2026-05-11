@@ -1,5 +1,7 @@
 # Tencent Cloud Docker Deployment Implementation Plan
 
+<!-- DOC-GARDENING-FLAG: This appears implemented under packages/gateway/deploy and packages/dispatcher/deploy, but checklist state was not updated. Verify and move to completed/ instead of executing from scratch. -->
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add Docker build, push, and run assets for `gateway` and `dispatcher` so both services can be deployed to Tencent Cloud with encrypted SOPS env files.
@@ -30,8 +32,8 @@ Key decisions from the spec:
 
 ### Existing files to read and preserve
 
-- `packages/demo-agent/Dockerfile` — existing pnpm workspace Docker pattern.
-- `packages/demo-agent/deploy.sh` — existing Tencent Cloud image push pattern.
+- `packages/gateway/deploy/Dockerfile` and `packages/dispatcher/deploy/Dockerfile` — current pnpm workspace Docker patterns for trusted services.
+- `packages/gateway/deploy/build.sh` and `packages/dispatcher/deploy/build.sh` — current Tencent Cloud image push patterns.
 - `/Users/fanfei/monorepo/claude-code-proxy/deploy/prod_tx/Dockerfile` — encrypted env COPY pattern.
 - `/Users/fanfei/monorepo/claude-code-proxy/deploy/prod_tx/start_glm_proxy.sh` — SOPS decrypt/export startup pattern.
 - `/Users/fanfei/monorepo/claude-code-proxy/deploy/prod_tx/.sops.yaml` — age recipient convention.

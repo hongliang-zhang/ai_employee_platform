@@ -63,19 +63,6 @@ Forbidden imports in `packages/dispatcher/src/`:
 - `openai`
 - Any other LLM provider SDK
 
-### demo-agent must not import postgres
-
-```
-Boundary: sandboxes are untrusted and must not have direct DB access.
-All persistence goes through gateway HTTP API.
-```
-
-Forbidden imports in `packages/demo-agent/`:
-- `psycopg2`, `asyncpg`, `SQLAlchemy` (Python)
-- `postgres`, `pg`, `prisma` (if TypeScript agent is added)
-
----
-
 ## Structured logging convention
 
 Every `logger.*` call must include an `event` field as the first key. Use dot-separated `service.action` naming.
@@ -132,6 +119,6 @@ pnpm lint
 # Architecture tests (included in pnpm test)
 pnpm test
 
-# Lint a single package
-pnpm --filter gateway lint
+# Check one package with the root ESLint config
+pnpm lint -- packages/gateway
 ```

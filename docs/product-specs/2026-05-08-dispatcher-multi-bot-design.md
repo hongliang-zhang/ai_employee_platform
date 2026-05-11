@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-08
 **Branch:** feature/dispatcher-multi-bot
-**Status:** Draft
+**Status:** Completed — implemented in dispatcher bot runner/registry
 
 ## Problem
 

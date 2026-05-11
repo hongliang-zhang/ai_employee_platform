@@ -2,15 +2,15 @@
 
 ## Status
 
-Approved design. Implementation plan pending.
+Completed — gateway and dispatcher deployment assets exist under `packages/*/deploy/`.
 
 ## Context
 
-The AaaS platform currently runs `gateway` and `dispatcher` as Node.js packages in a pnpm monorepo:
+The Agent Runtime platform currently runs `gateway` and `dispatcher` as Node.js packages in a pnpm monorepo:
 
 - `packages/gateway` is the trusted backend service. It exposes HTTP APIs and defaults to `PORT=3001`.
 - `packages/dispatcher` is the IM polling and sandbox lifecycle worker. It does not expose an HTTP port.
-- `packages/demo-agent` already has a Docker-based image publishing flow.
+- `packages/gateway` and `packages/dispatcher` now have Docker-based image publishing flows under their `deploy/` directories.
 - `~/monorepo/claude-code-proxy/deploy/prod_tx` provides the desired deployment pattern for encrypted environment files copied into images and decrypted at container startup with `sops`.
 
 The goal is to add Docker deployment assets for `gateway` and `dispatcher` targeting Tencent Cloud image registry.
@@ -21,7 +21,7 @@ The goal is to add Docker deployment assets for `gateway` and `dispatcher` targe
 2. Add a Dockerfile for each service.
 3. Add a script to build and push each image.
 4. Add a script to run each service container.
-5. Keep deployment style close to existing `demo-agent` and `claude-code-proxy` conventions.
+5. Keep deployment style close to the existing gateway/dispatcher deploy scripts and `claude-code-proxy` conventions.
 6. Store runtime configuration as encrypted `sops` env files copied into the image, then decrypted at startup.
 
 ## Non-goals
@@ -58,7 +58,7 @@ Each service's `deploy/.env` is intended to be a `sops`-encrypted env file, foll
 
 ## Image naming and tagging
 
-Use Tencent Cloud registry values aligned with `packages/demo-agent/deploy.sh`:
+Use Tencent Cloud registry values aligned with the service deploy scripts:
 
 ```bash
 HARBOR=maas-images-register.tencentcloudcr.com
@@ -274,7 +274,7 @@ POD_NAME=
 
 ## Build script design
 
-Each service gets a `build.sh` modeled after the image build/push parts of `packages/demo-agent/deploy.sh`.
+Each service gets a `build.sh` that builds from the monorepo root, pushes a git-SHA tag, and updates `latest`.
 
 Shared behavior:
 

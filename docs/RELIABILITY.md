@@ -15,16 +15,17 @@ All gateway routes return errors in the envelope:
 
 - gateway `appendMessages` — retried by dispatcher (transient DB errors)
 - e2b `Sandbox.create` — retried by dispatcher (e2b API can have transient failures)
-- sandbox `/chat` — retried up to 2 times; on 5xx, stale sandbox entry is destroyed before retry
+- sandbox `/chat` — retries transient 503 responses during ingress propagation; each request uses a fresh sandbox that is killed in `finally`
 
 ## Sandbox failure modes
 
 | Failure | Detection | Recovery |
 |---------|-----------|----------|
-| Sandbox never became healthy | Health poll timeout (30s × 1s) | `Sandbox.kill()` + throw (dispatcher retries from scratch) |
-| Sandbox returns 5xx | HTTP status check | Destroy sandbox entry + retry (recreates sandbox on next attempt) |
-| Sandbox unreachable / timeout | `AbortSignal.timeout(120_000)` | Same as 5xx path |
-| Sandbox idle too long | `idle_timeout_ms` timer in dispatcher | `Sandbox.kill()` + entry removed from map; recreated on next message |
+| Sandbox never became healthy | Health poll timeout (45 × 1s) | `Sandbox.kill()` + throw |
+| Sandbox returns transient 503 | HTTP status check | Retry `/chat` for up to ~10s while AGS ingress propagates |
+| Sandbox returns non-retryable error | HTTP status check | Throw; `finally` kills the sandbox |
+| Sandbox unreachable / timeout | `AbortSignal.timeout(120_000)` | Throw; `finally` kills the sandbox |
+| Agent needs to flush files | `/shutdown` before kill | Best-effort shutdown request with 15s timeout |
 
 ## Message delivery guarantee
 
@@ -34,4 +35,4 @@ All gateway routes return errors in the envelope:
 
 ## Known reliability gaps
 
-See [exec-plans/tech-debt-tracker.md](./exec-plans/tech-debt-tracker.md) for TD-001 (sandbox map lost on restart) and TD-002 (no stale lease recovery loop).
+See [exec-plans/tech-debt-tracker.md](./exec-plans/tech-debt-tracker.md) for TD-002 (no stale lease recovery loop) and TD-003 (`lastMessageId` cache not persisted).

@@ -10,10 +10,10 @@ ANTHROPIC_API_KEY=sk-ant-... npm run dev
 curl -X POST http://localhost:8080/chat -H 'Content-Type: application/json' -d '{"message":"hello"}'
 ```
 
-## Deploy to AaaS
+## Deploy to Agent Runtime
 
 ```bash
 npm run build
 e2b template build
-# Register template ID in e2b.toml, then register with AaaS platform
+# Register template ID in e2b.toml, then register with the Agent Runtime platform
 ```

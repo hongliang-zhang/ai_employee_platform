@@ -1,5 +1,7 @@
 # Dispatcher Multi-Bot Implementation Plan
 
+<!-- DOC-GARDENING-FLAG: This appears implemented in packages/dispatcher/src/bot-runner.ts and bot-registry.ts, but checklist state was not updated. Verify and move to completed/ instead of executing from scratch. -->
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Enable a single dispatcher process to manage multiple bots across multiple agents, with hot-loading via 30-second DB polling.

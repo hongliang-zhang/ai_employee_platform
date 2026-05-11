@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-`@aaas/agent-sdk` is a TypeScript SDK for building AI agents that run on the AaaS harness. It provides a complete agent loop (powered by pi-coding-agent), automatic harness convention compliance (HTTP endpoints, gateway interaction, file persistence), and local development support.
+`@aaas/agent-sdk` is a TypeScript SDK for building AI agents that run on the Agent Runtime harness. It provides a complete agent loop (powered by pi-coding-agent), automatic harness convention compliance (HTTP endpoints, gateway interaction, file persistence), and local development support.
 
 Developers configure system prompt, custom tools, and skills. The SDK handles everything else: HTTP server, LLM routing, session management, and file sync.
 

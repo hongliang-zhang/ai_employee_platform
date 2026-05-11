@@ -14,7 +14,7 @@
 
 3. **`agent-sdk`: `AssistantMessageEventStream` 重构** — 原实现使用手写的 async generator 包装事件流。迁移到 `@mariozechner/pi-ai` 导出的 `createAssistantMessageEventStream()` 统一了事件流 API，消除了 agent-sdk 中的重复实现。行为完全兼容——新 `AssistantMessageEventStream` 类实现了相同的 `AsyncIterable<AssistantMessageEvent>` 接口。这是在此 MR 中一并完成的原因：新的 sandbox-base 镜像运行 agent-sdk，需要确保事件流在 AGS 环境下工作正常。
 
-4. **`sandbox-base` + `demo-agent` Dockerfile 重构** — e2b 官方沙箱镜像与腾讯云 AGS 不兼容。新建 `sandbox-base` 包（Dockerfile + s6-overlay 进程管理）作为统一的沙箱运行时基础镜像，`demo-agent` 改为基于此镜像构建。这是迁移的前置依赖——没有适配腾讯云的镜像就无法在 AGS 上运行 agent。
+4. **`sandbox-base` + 外部 agent runtime 镜像重构** — e2b 官方沙箱镜像与腾讯云 AGS 不兼容。`sandbox-base` 包（Dockerfile + s6-overlay 进程管理）作为统一的沙箱运行时基础镜像；实际 agent runtime 镜像在 agent-sub 等外部工程中基于该基础镜像构建。
 
 **Tech Stack:** TypeScript, `@e2b/code-interpreter@1.5.1`, Vitest
 
@@ -200,7 +200,7 @@ git commit -m "docs: add E2B_DOMAIN to .env.example for Tencent Cloud sandbox"
 - [ ] **Step 1: 运行 dispatcher 全部测试**
 
 Run: `cd packages/dispatcher && npx vitest run tests/sandbox.test.ts tests/processor.test.ts`
-Expected: sandbox 4 passed, processor 3 passed。conversation 和 inbound-jobs 因 DB 连接问题会失败，属于已知基线。
+Expected: sandbox and processor tests pass. DB-backed conversation and im-message-tracker tests may fail if the local database is not configured; record that as baseline rather than a code regression.
 
 - [ ] **Step 2: 运行 TypeScript 编译检查**
 
@@ -277,7 +277,7 @@ echo "Sandbox domain: $SANDBOX_DOMAIN"
 curl -v --max-time 10 "https://8080-$SANDBOX_DOMAIN"
 ```
 
-- [ ] **Step 5: 验证沙箱可执行代码（通过 demo-agent）**
+- [ ] **Step 5: 验证沙箱可执行代码（通过外部 agent runtime）**
 
 通过 Telegram 或内部测试接口发送一个简单代码执行请求：
 ```

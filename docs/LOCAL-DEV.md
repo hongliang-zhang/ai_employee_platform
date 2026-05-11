@@ -6,7 +6,7 @@
   - Updated Supabase references to generic database references
 -->
 
-This guide covers how to run gateway and dispatcher locally for end-to-end testing.
+This guide covers how to run gateway, actions, and dispatcher locally for end-to-end testing.
 
 ---
 
@@ -17,6 +17,7 @@ This guide covers how to run gateway and dispatcher locally for end-to-end testi
 | Node.js | 24+ | `nvm install 24 && nvm alias default 24` |
 | pnpm | any | `npm i -g pnpm` |
 | natapp | 3.x | `curl -fsSL "https://natapp.cn/get.sh?authtoken=<your-token>" \| sh` |
+| Optional: lark-cli | latest | See [docs/references/cli-tools.md](./references/cli-tools.md) |
 
 > **Why Node 24?** Prisma 7 requires Node 20.19+, 22.12+, or 24+. Node 23 is not supported.
 
@@ -37,6 +38,9 @@ Edit `.env` and fill in:
 | `DATABASE_URL` | MySQL/TiDB connection string (e.g., TiDB Cloud, AWS RDS, or local MySQL) |
 | `JWT_SECRET` | Generate: `openssl rand -hex 32` |
 | `LLM_API_KEY` | Your LLM provider API key |
+| `INTERNAL_API_KEY` | Generate: `openssl rand -hex 32` — shared key for trusted service-to-service calls; never expose to sandboxes |
+| `ACTIONS_SERVICE_URL` | Usually `http://localhost:3002` for local development |
+| `FIRECRAWL_API_KEY` | Optional unless testing `search_web` actions |
 | `BOT_TOKEN_ENC_KEY` | Generate: `openssl rand -hex 32` — **this is an encryption key, not the bot token** |
 | `HTTPS_PROXY` / `HTTP_PROXY` | Your local proxy, e.g. `http://127.0.0.1:7890` — required in China to reach Telegram API |
 | `GATEWAY_URL` | Your NATAPP public tunnel URL, e.g. `http://s46fa5d3.natappfree.cc` |
@@ -86,7 +90,7 @@ Setup complete.
 
 ## Starting services
 
-Open **three separate terminal tabs** and run one command per tab. This is important — do not use background processes, as it leads to zombie processes that compete for the same IM polling or websocket stream.
+Open **four separate terminal tabs** and run one command per tab. This is important — do not use background processes, as it leads to zombie processes that compete for the same IM polling or websocket stream.
 
 **Tab 1 — NATAPP tunnel** (cloud sandboxes need a public URL to reach your local gateway):
 
@@ -124,6 +128,14 @@ GATEWAY_URL=http://s46fa5d3.natappfree.cc
 GATEWAY_LOCAL_URL=http://localhost:3001
 ```
 
+For this local development machine, the currently used NATAPP public URL is:
+```env
+GATEWAY_URL=http://je97f684.natappfree.cc
+GATEWAY_LOCAL_URL=http://localhost:3001
+```
+
+Do **not** commit NATAPP `authtoken` values to this document or to tracked files. Treat the token as a local credential; use it only when installing or starting the tunnel.
+
 **Tab 2 — Gateway:**
 ```bash
 pnpm --filter @aaas/gateway run dev
@@ -134,14 +146,25 @@ Expected output:
 INFO: gateway started  port: 3001
 ```
 
-**Tab 3 — Dispatcher:**
+**Tab 3 — Actions Service:**
+```bash
+pnpm --filter @aaas/actions run dev
+```
+
+Expected output:
+```
+INFO: actions started  port: 3002
+```
+
+**Tab 4 — Dispatcher:**
 ```bash
 pnpm --filter @aaas/dispatcher run dev
 ```
 
 Expected output:
 ```
-INFO: event: "dispatcher.start"  agent_id: "agt_xxx"
+INFO: event: "dispatcher.start"  instance_id: "dispatcher_xxx"
+INFO: event: "dispatcher.bot_started"  config_id: "cfg_xxx"
 ```
 
 ---
@@ -150,9 +173,17 @@ INFO: event: "dispatcher.start"  agent_id: "agt_xxx"
 
 **Health check:**
 ```bash
-curl http://localhost:3001/health                    # local
-curl http://s46fa5d3.natappfree.cc/health            # via NATAPP tunnel (must return {"ok":true})
+curl http://localhost:3001/health                    # gateway local
+curl http://s46fa5d3.natappfree.cc/health            # gateway via NATAPP tunnel (must return {"ok":true})
 ```
+
+**Actions Service check:**
+```bash
+curl http://localhost:3002/actions/list \
+  -H "X-Internal-Key: $INTERNAL_API_KEY"
+```
+
+Expected: JSON array of available actions, including `search_web` and `get_weather`.
 
 ### Sending messages via lark-cli (Feishu)
 
@@ -216,13 +247,15 @@ llm.response           ← LLM returned (typically 10–30s, depending on model)
 
 ### "服务暂时不可用" (service unavailable)
 
-Check dispatcher logs for `event: "chat.error"` or `event: "sandbox.stale"`. Common causes:
+Check dispatcher logs for `event: "chat.error"`, gateway logs for `actions.*` errors, and actions logs for `action.failed`. Common causes:
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `sandbox.stale` status 500 on first message | NATAPP tunnel not running or `GATEWAY_URL` points to the wrong public URL | Start `./.local/natapp/run_natapp.sh` (or `/opt/natapp/run_natapp.sh`) and verify `curl $GATEWAY_URL/health` |
+| Gateway `/gateway/actions/*` returns `502 action_execution_failed` | Actions Service is not running or `ACTIONS_SERVICE_URL` points to the wrong URL | Start `pnpm --filter @aaas/actions run dev` and verify `curl localhost:3002/actions/list -H "X-Internal-Key: $INTERNAL_API_KEY"` |
+| Actions Service returns `401 unauthorized` | `INTERNAL_API_KEY` differs between gateway and actions env | Use the same `INTERNAL_API_KEY` value for both services and restart them |
+| `sandbox health check timed out` or `sandbox returned 503` | Sandbox image/tool is slow, unhealthy, or template/tool ID is wrong | Verify the external agent runtime template from agent-sub and the ID stored in `agents.e2b_template_id` |
 | `polling.error: TypeError: fetch failed` | Telegram API unreachable | Set `HTTPS_PROXY=http://127.0.0.1:7890` in `.env` and restart dispatcher |
-| Message is `message.deduplicated` but user got error | Multiple dispatcher instances running | Kill all and restart: see below |
+| Message is skipped/deduplicated but user got error | Multiple dispatcher instances running or a previous receipt lease is still active | Kill stale processes and wait for lease expiry if needed |
 
 ### Multiple dispatcher instances (zombie processes)
 
@@ -232,10 +265,13 @@ To clean up:
 ```bash
 pkill -f "pnpm.*dispatcher"
 pkill -f "pnpm.*gateway"
+pkill -f "pnpm.*actions"
 pkill -f "node.*dispatcher.*index"
 pkill -f "node.*gateway.*index"
+pkill -f "node.*actions.*index"
 pkill -f "natapp.*authtoken"
-lsof -ti:3001 | xargs kill -9
+lsof -ti:3001 | xargs -r kill -9
+lsof -ti:3002 | xargs -r kill -9
 ```
 
 Then restart in separate terminal tabs as described above.
@@ -253,79 +289,9 @@ If the symlink is missing:
 ln -s ../../.env packages/db/.env
 ```
 
-### Building the e2b template
+### Agent sandbox template
 
-#### Overview
-
-The `demo-agent` package is deployed as an e2b sandbox template. Building and pushing the template is done with the e2b CLI from `packages/demo-agent/`.
-
-```bash
-# 1. Make sure demo-agent depends on the published SDK version
-#    (currently @alexlikevibe/agent-sdk)
-pnpm install
-
-# 2. Build demo-agent with tsc
-pnpm --filter @aaas/demo-agent build
-
-# 3. Push to e2b (--no-cache ensures latest code is used)
-cd packages/demo-agent
-HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 \
-  e2b template build --name demo-agent --no-cache
-```
-
-After a successful build, use the template ID printed in the output (also recorded in `packages/demo-agent/e2b.toml`) when `scripts/setup.ts` prompts for the sandbox template/tool ID.
-
-#### Why npm package + tsc instead of esbuild?
-
-`demo-agent` originally depended on `@aaas/agent-sdk` via `workspace:*`. That worked inside the monorepo but failed inside the Docker build because `npm install` in the container cannot resolve workspace references.
-
-The temporary workaround was to bundle everything with esbuild, but that caused runtime issues with `pino` / `pino-pretty` (dynamic require and transport resolution problems).
-
-The correct fix is:
-- publish the SDK to npm as `@alexlikevibe/agent-sdk`
-- let `demo-agent` depend on the published package
-- build `demo-agent` with plain `tsc`
-- let the Dockerfile run `npm install --production` normally
-
-This keeps runtime behavior aligned with standard Node.js module resolution and avoids bundling edge cases.
-
-#### Why HTTPS_PROXY is required
-
-The e2b CLI (v1) builds Docker images locally using Docker BuildKit. In China, Docker BuildKit's internal network does not automatically inherit macOS system proxy settings — even if your VPN is active. You must pass the proxy explicitly via environment variables so BuildKit can reach Docker Hub to pull the `node:20-slim` base image.
-
-Alternatively, configure Docker Desktop directly: **Settings → Resources → Proxies → Manual proxy configuration** → set both HTTP and HTTPS to `http://127.0.0.1:7890`.
-
-#### Why --no-cache
-
-Without `--no-cache`, Docker may reuse cached layers. In principle `COPY dist/` is content-addressed and safe, but `--no-cache` removes doubt during template updates and is recommended when you want to guarantee the latest code is used.
-
-#### Verifying the build
-
-Start a temporary sandbox and confirm the latest code is present:
-
-```bash
-E2B_API_KEY=<your_key> node --input-type=module << 'EOF'
-import { Sandbox } from 'e2b'
-const sbx = await Sandbox.create('demo-agent', { timeoutMs: 30000 })
-const r = await sbx.commands.run('grep -o "You are a helpful assistant" /app/dist/agent.js | head -1')
-console.log('systemPrompt:', r.stdout.trim())
-const s = await sbx.commands.run('ls -lh /app/dist/agent.js')
-console.log('file:', s.stdout.trim())
-await sbx.kill()
-EOF
-```
-
-#### Template ID changed?
-
-If you see `404: Template not found` when building, the template ID in `e2b.toml` no longer exists in your e2b account (e.g. after switching accounts or team). Fix:
-
-```bash
-# Remove the stale template_id so e2b creates a fresh one
-# Edit packages/demo-agent/e2b.toml and delete the template_id line, then:
-e2b template build --name demo-agent --no-cache
-```
-
-The new template ID will be written back to `e2b.toml` automatically. Use that value the next time you run `scripts/setup.ts`, or update the existing agent row in the database.
+The reference `demo-agent` package has moved out of this monorepo into the agent-sub project. Build and publish sandbox templates from that project, then use the resulting template/tool ID when `scripts/setup.ts` prompts for it.
 
 ---
 

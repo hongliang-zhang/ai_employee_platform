@@ -12,7 +12,7 @@ vi.mock('@mendable/firecrawl-js', () => {
   return { default: vi.fn().mockImplementation(() => ({ search: mockSearch })) }
 })
 
-process.env.ACTIONS_INTERNAL_KEY = 'test-key'
+process.env.INTERNAL_API_KEY = 'test-key'
 
 const { default: app } = await import('../src/index.js')
 
