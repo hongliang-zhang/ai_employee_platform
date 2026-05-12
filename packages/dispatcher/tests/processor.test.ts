@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createProcessor } from '../src/processor.js'
 
-// All external dependencies mocked
-const mockConversation = { getOrCreate: vi.fn(), getLastMessageId: vi.fn(), setLastMessageId: vi.fn() }
+const mockConversation = { getOrCreate: vi.fn() }
 const mockImMessageTracker = { tryClaim: vi.fn(), markDone: vi.fn(), markFailed: vi.fn() }
-const mockGateway = { appendMessages: vi.fn(), loadMessages: vi.fn() }
 const mockSandbox = { chat: vi.fn() }
 const mockIm = { sendMessage: vi.fn(), sendChatAction: vi.fn() }
 const mockJwt = { signSandboxToken: vi.fn(), signDispatcherToken: vi.fn() }
@@ -16,7 +14,6 @@ beforeEach(() => vi.resetAllMocks())
 const processor = createProcessor({
   conversation: mockConversation as any,
   imMessageTracker: mockImMessageTracker as any,
-  gateway: mockGateway as any,
   sandbox: mockSandbox as any,
   im: mockIm as any,
   jwt: mockJwt as any,
@@ -33,89 +30,56 @@ const normalizedMsg = {
 }
 
 describe('processor.handle', () => {
-  it('skips messages that are already tracked and not claimable', async () => {
+  it('skips messages that are not claimable', async () => {
     mockConversation.getOrCreate.mockResolvedValueOnce('conv_1')
     mockImMessageTracker.tryClaim.mockResolvedValueOnce({ claimed: false, reason: 'already_done' })
 
     await processor.handle(normalizedMsg)
 
-    expect(mockGateway.appendMessages).not.toHaveBeenCalled()
     expect(mockSandbox.chat).not.toHaveBeenCalled()
   })
 
   it('processes new message end-to-end', async () => {
     mockConversation.getOrCreate.mockResolvedValueOnce('conv_1')
     mockImMessageTracker.tryClaim.mockResolvedValueOnce({ claimed: true })
-    mockGateway.appendMessages.mockResolvedValueOnce({ last_message_id: 'msg_1' })
-    mockConversation.getLastMessageId
-      .mockReturnValueOnce(null)         // before append: no prior messages
-      .mockReturnValueOnce('msg_1')      // before /chat: after setLastMessageId('msg_1')
     mockJwt.signSandboxToken.mockReturnValueOnce('sandbox-jwt')
-    mockJwt.signDispatcherToken.mockReturnValueOnce('dispatcher-jwt')
     mockSandbox.chat.mockResolvedValueOnce('Hi!')
-    mockGateway.loadMessages.mockResolvedValueOnce({ last_message_id: 'msg_2' })
 
     await processor.handle(normalizedMsg)
 
-    expect(mockGateway.appendMessages).toHaveBeenCalledOnce()
     expect(mockSandbox.chat).toHaveBeenCalledWith({
       conversationId: 'conv_1',
       templateId: 'tpl_1',
       port: 8080,
       sessionToken: 'sandbox-jwt',
       message: 'hello',
-      lastMessageId: 'msg_1',
       traceId: expect.stringMatching(/^tr_/),
     })
     expect(mockIm.sendMessage).toHaveBeenCalledWith('123', 'Hi!')
-    expect(mockImMessageTracker.markDone).toHaveBeenCalledOnce()
-    expect(mockConversation.setLastMessageId).toHaveBeenCalled()
-  })
-
-  it('delivers reply returned by sandbox chat', async () => {
-    mockConversation.getOrCreate.mockResolvedValueOnce('conv_1')
-    mockImMessageTracker.tryClaim.mockResolvedValueOnce({ claimed: true })
-    mockGateway.appendMessages.mockResolvedValueOnce({ last_message_id: 'msg_1' })
-    mockConversation.getLastMessageId.mockReturnValue('msg_1')
-    mockJwt.signSandboxToken.mockReturnValueOnce('sandbox-jwt')
-    mockJwt.signDispatcherToken.mockReturnValueOnce('dispatcher-jwt')
-    mockSandbox.chat.mockResolvedValueOnce('Hi after init')
-    mockGateway.loadMessages.mockResolvedValueOnce({ last_message_id: 'msg_2' })
-
-    await processor.handle(normalizedMsg)
-
-    expect(mockSandbox.chat).toHaveBeenCalledOnce()
-    expect(mockIm.sendMessage).toHaveBeenCalledWith('123', 'Hi after init')
     expect(mockImMessageTracker.markDone).toHaveBeenCalledOnce()
   })
 
   it('marks job failed and notifies user if sandbox chat fails', async () => {
     mockConversation.getOrCreate.mockResolvedValueOnce('conv_1')
     mockImMessageTracker.tryClaim.mockResolvedValueOnce({ claimed: true })
-    mockGateway.appendMessages.mockResolvedValueOnce({ last_message_id: 'msg_1' })
-    mockConversation.getLastMessageId.mockReturnValue('msg_1')
     mockJwt.signSandboxToken.mockReturnValueOnce('sandbox-jwt')
-    mockJwt.signDispatcherToken.mockReturnValueOnce('dispatcher-jwt')
-    mockSandbox.chat.mockRejectedValueOnce(new Error('sandbox still initializing after retries (503)'))
-
-    await processor.handle(normalizedMsg)
-
-    expect(mockSandbox.chat).toHaveBeenCalledOnce()
-    expect(mockImMessageTracker.markFailed).toHaveBeenCalledOnce()
-    expect(mockIm.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('不可用'))
-  })
-
-  it('marks job failed and notifies user if sandbox creation throws', async () => {
-    mockConversation.getOrCreate.mockResolvedValueOnce('conv_1')
-    mockImMessageTracker.tryClaim.mockResolvedValueOnce({ claimed: true })
-    mockGateway.appendMessages.mockResolvedValueOnce({ last_message_id: 'msg_1' })
-    mockJwt.signSandboxToken.mockReturnValueOnce('tok')
-    mockJwt.signDispatcherToken.mockReturnValueOnce('tok')
     mockSandbox.chat.mockRejectedValueOnce(new Error('sandbox health check timed out'))
 
     await processor.handle(normalizedMsg)
 
     expect(mockImMessageTracker.markFailed).toHaveBeenCalledOnce()
     expect(mockIm.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('不可用'))
+  })
+
+  it('does not pass lastMessageId to sandbox.chat', async () => {
+    mockConversation.getOrCreate.mockResolvedValueOnce('conv_1')
+    mockImMessageTracker.tryClaim.mockResolvedValueOnce({ claimed: true })
+    mockJwt.signSandboxToken.mockReturnValueOnce('tok')
+    mockSandbox.chat.mockResolvedValueOnce('ok')
+
+    await processor.handle(normalizedMsg)
+
+    const chatCall = mockSandbox.chat.mock.calls[0][0]
+    expect(chatCall).not.toHaveProperty('lastMessageId')
   })
 })

@@ -31,7 +31,6 @@ function baseParams(overrides = {}) {
     port: 8080,
     sessionToken: 'tok',
     message: 'hi',
-    lastMessageId: null,
     traceId: 'tr_1',
     ...overrides,
   }

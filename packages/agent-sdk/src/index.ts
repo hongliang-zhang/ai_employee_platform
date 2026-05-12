@@ -1,7 +1,7 @@
 export { detectEnvironment, resolveConfig } from './environment.js'
 export type { Environment, LocalConfig, ResolvedConfig, SandboxConfig } from './environment.js'
 export { GatewayClient } from './gateway-client.js'
-export type { GatewayMessage, PresignOperation, PresignedUrl, RemoteFile } from './gateway-client.js'
+export type { SessionEvent, PiContentBlock, PiTextBlock, PiToolCallBlock, PiToolResultBlock, EmitResult, ListResult, PresignOperation, PresignedUrl, RemoteFile } from './gateway-client.js'
 export { createGatewayLlmProvider } from './gateway-llm-adapter.js'
 export { FileSync } from './file-sync.js'
 export { createHarnessApp } from './harness-server.js'

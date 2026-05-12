@@ -31,7 +31,6 @@ interface ChatParams {
   port: number
   sessionToken: string
   message: string
-  lastMessageId: string | null
   traceId: string
 }
 
@@ -109,7 +108,7 @@ export function createSandboxOrchestrator(config: {
           const res = await fetch(`${chatUrl}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Trace-Id': params.traceId },
-            body: JSON.stringify({ message: params.message, last_message_id: params.lastMessageId }),
+            body: JSON.stringify({ message: params.message }),
             signal: AbortSignal.timeout(SANDBOX.chatTimeoutMs),
           })
           if (res.ok) {

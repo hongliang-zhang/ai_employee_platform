@@ -2,7 +2,7 @@ import express from 'express'
 import pino from 'pino'
 import { createDb } from './db.js'
 import { createAuthMiddleware } from './auth.js'
-import { createMessagesRouter } from './routes/messages.js'
+import { createEventsRouter } from './routes/events.js'
 import { createLlmRouter } from './routes/llm.js'
 import { createS3Service } from './s3.js'
 import { createStorageRouter } from './routes/storage.js'
@@ -30,7 +30,7 @@ app.use(express.json())
 
 app.get('/health', (_req, res) => { res.json({ ok: true }) })
 
-app.use('/gateway/messages', auth, createMessagesRouter(db))
+app.use('/gateway/events', auth, createEventsRouter(db))
 app.use('/gateway/llm', auth, createLlmRouter(LLM_API_KEY))
 
 if (S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY && S3_SECRET_KEY) {

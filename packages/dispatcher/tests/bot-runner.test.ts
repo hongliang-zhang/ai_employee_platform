@@ -31,9 +31,8 @@ vi.mock('@larksuiteoapi/node-sdk', () => ({
 const mockEnc = { decrypt: vi.fn(), encrypt: vi.fn() }
 const SHARED_DEPS = {
   enc: mockEnc as any,
-  conversation: { getOrCreate: vi.fn(), getLastMessageId: vi.fn(), setLastMessageId: vi.fn() } as any,
+  conversation: { getOrCreate: vi.fn() } as any,
   imMessageTracker: { tryClaim: vi.fn(), markDone: vi.fn(), markFailed: vi.fn() } as any,
-  gateway: { appendMessages: vi.fn(), loadMessages: vi.fn() } as any,
   sandbox: { chat: vi.fn() } as any,
   jwt: { signSandboxToken: vi.fn(), signDispatcherToken: vi.fn() } as any,
 }

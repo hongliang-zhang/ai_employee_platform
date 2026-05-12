@@ -14,7 +14,6 @@ export function createBotRegistry(deps: {
   jwt: ReturnType<typeof import('./lib/jwt.js').createJwtSigner>
   conversation: ReturnType<typeof import('./conversation.js').createConversationManager>
   imMessageTracker: ReturnType<typeof import('./im-message-tracker.js').createImMessageTracker>
-  gateway: ReturnType<typeof import('./gateway-client.js').createGatewayClient>
   sandbox: SandboxOrchestrator
   pollIntervalMs?: number
 }) {

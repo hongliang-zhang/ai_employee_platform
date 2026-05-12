@@ -1,6 +1,6 @@
 {
   "name": "@alexlikevibe/agent-sdk",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Agent Runtime SDK — build agents that run on the Agent Runtime harness",
   "type": "module",
   "main": "./dist/index.js",

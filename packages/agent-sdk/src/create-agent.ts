@@ -1,5 +1,7 @@
 import { createServer } from 'http'
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent'
+
+type AnyToolDefinition = ToolDefinition<any, unknown, any>
 import { resolveConfig } from './environment.js'
 import { FileSync } from './file-sync.js'
 import { type ActionDefinition, GatewayClient } from './gateway-client.js'
@@ -10,7 +12,7 @@ export interface CreateAgentOptions {
   /** System prompt for the agent */
   systemPrompt?: string
   /** Custom tools to register */
-  tools?: ToolDefinition[]
+  tools?: AnyToolDefinition[]
   /** Directories to load skills from */
   skillDirs?: string[]
   /** Platform action names — SDK fetches their schemas from gateway and registers them as tools */
@@ -33,7 +35,7 @@ export async function createAgent(options: CreateAgentOptions = {}): Promise<voi
 
   // Resolve action tools from gateway before building the app.
   // If listActions() fails we degrade silently (agent starts without those tools).
-  let resolvedTools: ToolDefinition[] = tools ? [...tools] : []
+  let resolvedTools: AnyToolDefinition[] = tools ? [...tools] : []
   if (actions?.length && gateway) {
     let available: ActionDefinition[] = []
     try {
@@ -47,14 +49,14 @@ export async function createAgent(options: CreateAgentOptions = {}): Promise<voi
       logger.warn({ event: 'agent.actions_unknown', names: unknown })
     }
 
-    const actionTools: ToolDefinition[] = available
+    const actionTools: AnyToolDefinition[] = available
       .filter(a => actions.includes(a.name))
       .map(a => ({
         name: a.name,
         label: a.name,
         description: a.description,
-        parameters: a.inputSchema,
-        execute: async (_toolCallId: string, params: unknown) => gateway!.invokeAction(a.name, params),
+        parameters: a.inputSchema as any,
+        execute: async (_toolCallId: string, params: unknown) => gateway!.invokeAction(a.name, params) as any,
       }))
 
     // Append action tools after developer-supplied tools (developer tools take precedence on name clashes)

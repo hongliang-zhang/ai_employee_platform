@@ -9,10 +9,26 @@ export interface ActionDefinition {
   }
 }
 
-export interface GatewayMessage {
-  role: string
-  content: Array<{ type: string; text?: string; [key: string]: unknown }>
-  source: 'sandbox'
+export type PiTextBlock = { type: 'text'; text: string }
+export type PiToolCallBlock = { type: 'toolCall'; name: string; id: string; input: unknown }
+export type PiToolResultBlock = { type: 'toolResult'; toolUseId: string; content: PiTextBlock[] }
+export type PiContentBlock = PiTextBlock | PiToolCallBlock | PiToolResultBlock
+
+export interface SessionEvent {
+  role: 'user' | 'assistant' | 'toolResult'
+  content: PiContentBlock[]
+}
+
+export interface EmitResult {
+  conversation_id: string
+  appended: { seq: string; role: string; created_at: string }[]
+  last_event_id: string
+}
+
+export interface ListResult {
+  conversation_id: string
+  events: (SessionEvent & { seq: string; created_at: string })[]
+  last_event_id: string | null
 }
 
 export interface PresignOperation {
@@ -72,14 +88,18 @@ export class GatewayClient {
     return res.json() as Promise<T>
   }
 
-  async appendMessages(
-    expectedLastMessageId: string | null,
-    messages: GatewayMessage[],
-  ): Promise<{ last_message_id: string }> {
-    return this.request('/gateway/messages/append', {
-      expected_last_message_id: expectedLastMessageId,
-      messages,
+  async emitEvents(
+    expectedLastEventId: string | null,
+    events: SessionEvent[],
+  ): Promise<EmitResult> {
+    return this.request('/gateway/events/emit', {
+      expected_last_event_id: expectedLastEventId,
+      events,
     })
+  }
+
+  async listEvents(afterEventId?: string): Promise<ListResult> {
+    return this.request('/gateway/events/list', afterEventId ? { after_event_id: afterEventId } : {})
   }
 
   async presignUrls(operations: PresignOperation[]): Promise<PresignedUrl[]> {

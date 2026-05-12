@@ -56,26 +56,24 @@ model Conversation {
   lastMessageAt DateTime? @map("last_message_at")
 
   agent       Agent        @relation(fields: [agentId], references: [id])
-  messages    Message[]
+  sessionEvents SessionEvent[]
   imMessageReceipts ImMessageReceipt[]
 
   @@unique([imConfigId, chatId, topicId])
   @@map("conversations")
 }
 
-model Message {
-  id             String   @id
+model SessionEvent {
+  seq            BigInt
   conversationId String   @map("conversation_id")
-  role           String
+  role           String   // DB level: ENUM('user', 'assistant', 'toolResult')
   contentJson    Json     @map("content_json")
-  source         String
-  messageId      String?  @map("message_id")
-  metadataJson   Json     @default("{}") @map("metadata_json")
-  createdAt      DateTime @default(now()) @map("created_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
-  @@map("messages")
+  @@id([conversationId, seq])
+  @@map("session_events")
 }
 
 model ImMessageReceipt {

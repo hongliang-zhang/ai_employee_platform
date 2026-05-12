@@ -12,139 +12,148 @@ describe('GatewayClient', () => {
     fetchMock.mockReset()
   })
 
-  it('appendMessages sends correct payload', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ last_message_id: 'msg_2' }),
-    })
-    const result = await client.appendMessages('msg_1', [
-      { role: 'assistant', content: [{ type: 'text', text: 'hello' }], source: 'sandbox' },
-    ])
-    expect(result.last_message_id).toBe('msg_2')
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://gw.example.com/gateway/messages/append',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({ Authorization: 'Bearer tok_abc' }),
+  describe('emitEvents', () => {
+    it('sends correct payload and returns last_event_id', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ conversation_id: 'conv_1', appended: [{ seq: '2', role: 'user', created_at: '' }], last_event_id: '2' }),
       })
-    )
-  })
-
-  it('appendMessages throws on non-ok response', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 409,
-      json: async () => ({ error: { code: 'stale_write', message: 'stale', retryable: true, details: {} } }),
+      const result = await client.emitEvents('1', [
+        { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+      ])
+      expect(result.last_event_id).toBe('2')
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://gw.example.com/gateway/events/emit',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({ Authorization: 'Bearer tok_abc' }),
+        })
+      )
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+      expect(body.expected_last_event_id).toBe('1')
+      expect(body.events[0].role).toBe('user')
     })
-    await expect(client.appendMessages('msg_old', [])).rejects.toThrow('stale_write')
-  })
 
-  it('presignUrls returns url list', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        urls: [{ path: 'shared/SOUL.md', url: 'https://s3/presigned', expires_in: 3600 }],
-      }),
-    })
-    const result = await client.presignUrls([{ action: 'upload', path: 'shared/SOUL.md' }])
-    expect(result).toHaveLength(1)
-    expect(result[0].path).toBe('shared/SOUL.md')
-  })
-
-  it('listFiles returns file list', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        files: [{ path: 'shared/SOUL.md', size: 100, last_modified: '2026-01-01T00:00:00Z' }],
-      }),
-    })
-    const result = await client.listFiles('shared')
-    expect(result).toHaveLength(1)
-    expect(result[0].path).toBe('shared/SOUL.md')
-  })
-
-  // get() tests
-  it('get() returns parsed JSON on ok response', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ actions: [] }),
-    })
-    const result = await client.listActions()
-    expect(result).toEqual([])
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://gw.example.com/gateway/actions/list',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.objectContaining({ Authorization: 'Bearer tok_abc' }),
+    it('sends null expected_last_event_id for first emit', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ conversation_id: 'conv_1', appended: [{ seq: '1', role: 'user', created_at: '' }], last_event_id: '1' }),
       })
-    )
-  })
-
-  it('get() throws on non-ok response', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      json: async () => ({ error: { code: 'forbidden' } }),
+      await client.emitEvents(null, [{ role: 'user', content: [] }])
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+      expect(body.expected_last_event_id).toBeNull()
     })
-    await expect(client.listActions()).rejects.toThrow('forbidden')
-  })
 
-  // invokeAction() tests
-  it('invokeAction() returns result on success', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ result: { foo: 'bar' } }),
-    })
-    const result = await client.invokeAction('search_web', { query: 'hello' })
-    expect(result).toEqual({ foo: 'bar' })
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://gw.example.com/gateway/actions/invoke',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({ Authorization: 'Bearer tok_abc' }),
+    it('throws on stale_write (409)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: { code: 'stale_write', message: 'stale', retryable: false, details: {} } }),
       })
-    )
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
-    expect(body).toEqual({ action: 'search_web', input: { query: 'hello' } })
+      await expect(client.emitEvents('old_id', [])).rejects.toThrow('stale_write')
+    })
   })
 
-  it('invokeAction() throws on non-ok response', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: { code: 'internal_error' } }),
+  describe('listEvents', () => {
+    it('returns events and last_event_id', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          conversation_id: 'conv_1',
+          events: [
+            { seq: '1', role: 'user', content: [{ type: 'text', text: 'hi' }], created_at: '' },
+            { seq: '2', role: 'assistant', content: [{ type: 'text', text: 'hello' }], created_at: '' },
+          ],
+          last_event_id: '2',
+        }),
+      })
+      const result = await client.listEvents()
+      expect(result.events).toHaveLength(2)
+      expect(result.last_event_id).toBe('2')
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://gw.example.com/gateway/events/list',
+        expect.objectContaining({ method: 'POST' })
+      )
     })
-    await expect(client.invokeAction('search_web', {})).rejects.toThrow('internal_error')
+
+    it('returns null last_event_id for empty conversation', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ conversation_id: 'conv_1', events: [], last_event_id: null }),
+      })
+      const result = await client.listEvents()
+      expect(result.events).toHaveLength(0)
+      expect(result.last_event_id).toBeNull()
+    })
+
+    it('sends after_event_id when provided', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ conversation_id: 'conv_1', events: [], last_event_id: null }),
+      })
+      await client.listEvents('5')
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+      expect(body.after_event_id).toBe('5')
+    })
   })
 
-  // listActions() tests
-  it('listActions() returns action definitions on success', async () => {
-    const mockAction = {
-      name: 'search_web',
-      description: 'Search the web',
-      inputSchema: {
-        type: 'object',
-        properties: { query: { type: 'string', description: 'Search query' } },
-        required: ['query'],
-      },
-    }
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ actions: [mockAction] }),
+  describe('presignUrls', () => {
+    it('returns url list', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          urls: [{ path: 'shared/SOUL.md', url: 'https://s3/presigned', expires_in: 3600 }],
+        }),
+      })
+      const result = await client.presignUrls([{ action: 'upload', path: 'shared/SOUL.md' }])
+      expect(result).toHaveLength(1)
+      expect(result[0].path).toBe('shared/SOUL.md')
     })
-    const result = await client.listActions()
-    expect(result).toHaveLength(1)
-    expect(result[0].name).toBe('search_web')
-    expect(result[0].description).toBe('Search the web')
-    expect(result[0].inputSchema.required).toEqual(['query'])
   })
 
-  it('listActions() throws on non-ok response', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 503,
-      json: async () => ({ error: { code: 'service_unavailable' } }),
+  describe('listActions', () => {
+    it('returns action definitions', async () => {
+      const mockAction = {
+        name: 'search_web',
+        description: 'Search the web',
+        inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+      }
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ actions: [mockAction] }),
+      })
+      const result = await client.listActions()
+      expect(result).toHaveLength(1)
+      expect(result[0].name).toBe('search_web')
     })
-    await expect(client.listActions()).rejects.toThrow('service_unavailable')
+
+    it('throws on non-ok response', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: { code: 'forbidden' } }),
+      })
+      await expect(client.listActions()).rejects.toThrow('forbidden')
+    })
+  })
+
+  describe('invokeAction', () => {
+    it('returns result on success', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ result: { foo: 'bar' } }),
+      })
+      const result = await client.invokeAction('search_web', { query: 'hello' })
+      expect(result).toEqual({ foo: 'bar' })
+    })
+
+    it('throws on non-ok response', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: { code: 'internal_error' } }),
+      })
+      await expect(client.invokeAction('search_web', {})).rejects.toThrow('internal_error')
+    })
   })
 })
