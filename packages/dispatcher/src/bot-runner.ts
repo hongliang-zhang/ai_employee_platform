@@ -31,11 +31,10 @@ export function createBotRunner(deps: {
   enc: ReturnType<typeof import('./lib/encrypt.js').createEncryptor>
   conversation: ReturnType<typeof import('./conversation.js').createConversationManager>
   imMessageTracker: ReturnType<typeof import('./im-message-tracker.js').createImMessageTracker>
-  gateway: ReturnType<typeof import('./gateway-client.js').createGatewayClient>
   sandbox: SandboxOrchestrator
   jwt: ReturnType<typeof import('./lib/jwt.js').createJwtSigner>
 }): BotRunner {
-  const { cfg, agent, enc, conversation, imMessageTracker, gateway, sandbox, jwt } = deps
+  const { cfg, agent, enc, conversation, imMessageTracker, sandbox, jwt } = deps
   const imConfigId = `im:${cfg.id}`
   let stopFn: (() => void) | null = null
 
@@ -46,7 +45,7 @@ export function createBotRunner(deps: {
 
       if (cfg.provider === 'telegram') {
         const { client, listen } = createTelegramClient(credentials.bot_token)
-        const processor = createProcessor({ conversation, imMessageTracker, gateway, sandbox, im: client, jwt, agent })
+        const processor = createProcessor({ conversation, imMessageTracker, sandbox, im: client, jwt, agent })
         stopFn = listen(msg => processor.handle(msg), imConfigId)
 
       } else if (cfg.provider === 'feishu') {
@@ -57,7 +56,7 @@ export function createBotRunner(deps: {
         logger.info({ event: 'feishu.bot_identity', config_id: cfg.id, bot_open_id: botOpenId })
 
         const { client, listen } = createFeishuClient(credentials.app_id, credentials.app_secret, botOpenId)
-        const processor = createProcessor({ conversation, imMessageTracker, gateway, sandbox, im: client, jwt, agent })
+        const processor = createProcessor({ conversation, imMessageTracker, sandbox, im: client, jwt, agent })
         stopFn = await listen(msg => processor.handle(msg), imConfigId)
 
       } else {

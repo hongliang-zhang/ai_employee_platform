@@ -69,20 +69,19 @@ One row per unique (channel_key, external_chat_id, external_thread_key) triple. 
 
 ---
 
-## Table: `messages`
+## Table: `session_events`
 
-Full conversation history. Append-only; never updated after insert.
+Full session event log. Append-only; one row per user/assistant/tool result event in Pi native format.
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
-| `id` | TEXT | PRIMARY KEY | Format: `msg_{cuid2}` |
-| `conversation_id` | TEXT | NOT NULL REFERENCES conversations(id) | |
-| `role` | TEXT | CHECK IN ('user','assistant','system','tool') | |
-| `content_json` | JSONB | NOT NULL | OpenAI-compatible content array |
-| `source` | TEXT | CHECK IN ('im','sandbox') | 'im' = written by dispatcher; 'sandbox' = written by agent |
-| `message_id` | TEXT | | IM/platform message ID (nullable for assistant messages) |
-| `metadata_json` | JSONB | DEFAULT '{}' | Extensible metadata |
-| `created_at` | TIMESTAMPTZ | DEFAULT now() | Used for ordering; 1ms offset applied between batch inserts |
+| `conversation_id` | TEXT | PRIMARY KEY (with `seq`) | Conversation owning this event |
+| `seq` | BIGINT | PRIMARY KEY (with `conversation_id`) | Conversation-scoped event sequence, allocated by gateway |
+| `role` | ENUM | NOT NULL; one of `user`, `assistant`, `toolResult` | Pi native role |
+| `content_json` | JSON | NOT NULL | Pi native content blocks |
+| `created_at` | DATETIME(3) | DEFAULT current timestamp | Insert time |
+
+`last_event_id`, `expected_last_event_id`, and `after_event_id` use the string form of `seq` within the authenticated conversation. `seq` is not globally unique across conversations.
 
 ---
 

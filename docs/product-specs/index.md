@@ -26,3 +26,4 @@
 | [2026-05-08-dispatcher-multi-bot-design.md](./2026-05-08-dispatcher-multi-bot-design.md) | Completed | Dispatcher 多 bot 支持：单进程管理所有 agent 的全部 IM bot，热加载，独立重试 (2026-05-08) |
 | [2026-05-08-tencent-cloud-docker-deploy-design.md](./2026-05-08-tencent-cloud-docker-deploy-design.md) | Completed | 腾讯云 Docker 部署设计：gateway/dispatcher 镜像构建、加密 env 与容器启动脚本 (2026-05-08) |
 | [2026-05-11-actions-service-design.md](./2026-05-11-actions-service-design.md) | Active | Actions Service 设计：三方 API 统一集成层，gateway 两条永不改变的路由，新增集成只改 Actions Service (2026-05-11) |
+| [2026-05-11-gateway-session-events-design.md](./2026-05-11-gateway-session-events-design.md) | Draft | Gateway Session Events 重设计：messages 升级为 append-only event log，harness 统一写入，对齐 Anthropic Managed Agents 架构 (2026-05-11) |

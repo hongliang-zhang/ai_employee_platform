@@ -10,7 +10,7 @@ import express, { type Application } from 'express'
 import { join } from 'path'
 import { createGatewayLlmProvider } from './gateway-llm-adapter.js'
 import type { Model } from '@mariozechner/pi-ai'
-import type { GatewayClient } from './gateway-client.js'
+import type { GatewayClient, PiContentBlock, SessionEvent } from './gateway-client.js'
 import type { ResolvedConfig, SandboxConfig } from './environment.js'
 import { logger } from './logger.js'
 
@@ -32,6 +32,52 @@ export interface HarnessServerOptions {
   onShutdown?: () => Promise<void>
 }
 
+function isTextBlock(value: unknown): value is PiContentBlock {
+  return typeof value === 'object' && value !== null && (value as any).type === 'text' && typeof (value as any).text === 'string'
+}
+
+function isPiContentBlock(value: unknown): value is PiContentBlock {
+  if (isTextBlock(value)) return true
+  if (typeof value !== 'object' || value === null) return false
+
+  const block = value as any
+  if (block.type === 'toolCall') {
+    return typeof block.name === 'string' && typeof block.id === 'string' && 'input' in block
+  }
+  if (block.type === 'toolResult') {
+    return typeof block.toolUseId === 'string'
+      && Array.isArray(block.content)
+      && block.content.every(isTextBlock)
+  }
+  return false
+}
+
+function asPiContentBlocks(value: unknown): PiContentBlock[] | null {
+  return Array.isArray(value) && value.length > 0 && value.every(isPiContentBlock) ? value : null
+}
+
+// Extracts Pi-native session events from a turn_end event.
+// turn_end carries: message (assistant, may contain toolCall blocks) + toolResults array.
+function buildEventsFromTurn(event: any): SessionEvent[] {
+  const events: SessionEvent[] = []
+  const assistantContent = asPiContentBlocks(event.message?.content)
+  if (assistantContent) {
+    events.push({ role: 'assistant', content: assistantContent })
+  } else if (event.message?.content !== undefined) {
+    throw new Error('invalid assistant content in turn_end')
+  }
+
+  for (const tr of event.toolResults ?? []) {
+    const toolResultContent = asPiContentBlocks(tr.content)
+    if (toolResultContent) {
+      events.push({ role: 'toolResult', content: toolResultContent })
+    } else if (tr.content !== undefined) {
+      throw new Error('invalid toolResult content in turn_end')
+    }
+  }
+  return events
+}
+
 // Note: /chat requests are processed serially by the pi agent session.
 // Concurrent requests are not supported in MVP — the dispatcher ensures
 // one request at a time per conversation (sandbox-per-conversation model).
@@ -44,7 +90,7 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
   // While session or file sync is still initializing, /health and /chat return 503.
   // If session initialization fails, /chat returns 500 and /health remains unhealthy.
   let session: Awaited<ReturnType<typeof createAgentSession>>['session'] | null = null
-  let lastMessageId: string | null = null
+  let lastEventId: string | null = null
 
   // Kick off session init in the background — caller triggers this after listen()
   app.locals.initSession = async () => {
@@ -103,6 +149,16 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
       session.agent.setSystemPrompt(systemPrompt)
     }
 
+    // Sync lastEventId from gateway so OCC is correct after sandbox restarts
+    if (gateway) {
+      try {
+        const current = await gateway.listEvents()
+        lastEventId = current.last_event_id
+      } catch (err) {
+        logger.warn({ event: 'harness.list_events_init_failed', error: String(err) })
+      }
+    }
+
     logger.info({ event: 'agent.session_ready', duration_ms: Date.now() - initStart })
     app.locals.sessionReady = true
   }
@@ -126,37 +182,77 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
       return
     }
 
-    const { message, last_message_id } = req.body as { message?: string; last_message_id?: string }
+    const { message } = req.body as { message?: string }
     if (!message) {
       res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'missing message' })
       return
     }
 
-    // Update local head from dispatcher before processing
-    if (last_message_id) {
-      lastMessageId = last_message_id
+    // Write user message to gateway before starting agent loop
+    if (config.mode === 'sandbox' && gateway) {
+      try {
+        const result = await gateway.emitEvents(lastEventId, [{
+          role: 'user',
+          content: [{ type: 'text', text: message }],
+        }])
+        lastEventId = result.last_event_id
+      } catch (err) {
+        logger.error({ event: 'harness.emit_user_message_failed', error: String(err) })
+        res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ error: 'gateway write failed' })
+        return
+      }
     }
 
     let lastReply = ''
 
     try {
       await new Promise<void>((resolve, reject) => {
+        // Chain turn_end emits sequentially to preserve OCC ordering
+        let emitChain: Promise<void> = Promise.resolve()
+
         const unsubscribe = session!.subscribe((event: any) => {
-          if (event.type === 'message_update') {
-            const content = event.message?.content
-            if (Array.isArray(content) && event.message?.role === 'assistant') {
-              for (const block of content) {
-                if (block.type === 'text' && block.text) {
-                  lastReply = block.text
+          try {
+            if (event.type === 'message_update') {
+              const content = event.message?.content
+              if (Array.isArray(content) && event.message?.role === 'assistant') {
+                for (const block of content) {
+                  if (block.type === 'text' && block.text) {
+                    lastReply = block.text
+                  }
                 }
               }
             }
-          }
-          if (event.type === 'agent_end') {
+
+            if (event.type === 'turn_end' && config.mode === 'sandbox' && gateway) {
+              const eventsToEmit = buildEventsFromTurn(event)
+              if (eventsToEmit.length > 0) {
+                emitChain = emitChain.then(async () => {
+                  const result = await gateway.emitEvents(lastEventId, eventsToEmit)
+                  lastEventId = result.last_event_id
+                }).catch(async (err) => {
+                  logger.warn({ event: 'harness.emit_turn_failed', error: String(err) })
+                  try {
+                    const current = await gateway.listEvents()
+                    lastEventId = current.last_event_id
+                  } catch (syncErr) {
+                    logger.warn({ event: 'harness.list_events_after_emit_failed', error: String(syncErr) })
+                  }
+                  throw err
+                })
+              }
+            }
+
+            if (event.type === 'agent_end') {
+              unsubscribe()
+              // Wait for any in-flight turn_end emits before resolving
+              emitChain.then(resolve).catch(reject)
+            }
+          } catch (err) {
             unsubscribe()
-            resolve()
+            reject(err)
           }
         })
+
         session!.prompt(message).catch((err: unknown) => {
           unsubscribe()
           reject(err)
@@ -166,17 +262,6 @@ export function createHarnessApp(options: HarnessServerOptions): Application {
       logger.error({ event: 'harness.agent_error', error: String(err) })
       res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ error: 'agent error' })
       return
-    }
-
-    // Fire-and-forget: persist assistant reply to gateway audit log in sandbox mode
-    if (config.mode === 'sandbox' && gateway && lastReply) {
-      gateway.appendMessages(lastMessageId, [{
-        role: 'assistant',
-        content: [{ type: 'text', text: lastReply }],
-        source: 'sandbox',
-      }]).then((result) => {
-        lastMessageId = result.last_message_id
-      }).catch((err) => logger.warn({ event: 'harness.append_messages_failed', error: String(err) }))
     }
 
     res.json({ reply: lastReply })
