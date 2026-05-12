@@ -5,14 +5,14 @@ WORKDIR /app
 
 COPY pnpm-workspace.yaml package.json tsconfig.base.json pnpm-lock.yaml ./
 COPY packages/db/ packages/db/
-COPY packages/dispatcher/ packages/dispatcher/
+COPY packages/gateway/ packages/gateway/
 
-RUN pnpm install --frozen-lockfile --filter @aaas/dispatcher... \
+RUN pnpm install --frozen-lockfile --filter @aaas/gateway... \
     && pnpm --filter @aaas/db generate \
     && pnpm --filter @aaas/db exec tsc -p tsconfig.json --skipLibCheck \
     && cp -R packages/db/src/generated packages/db/dist/generated \
-    && pnpm --filter @aaas/dispatcher... build \
-    && pnpm --filter @aaas/dispatcher deploy --prod /deploy \
+    && pnpm --filter @aaas/gateway... build \
+    && pnpm --filter @aaas/gateway deploy --prod /deploy \
     && cp -R dist /deploy/dist \
     && mkdir -p /deploy/node_modules/@aaas/db/dist \
     && cp -R --remove-destination packages/db/dist/. /deploy/node_modules/@aaas/db/dist/ \
@@ -29,12 +29,12 @@ RUN chmod +x /usr/local/bin/sops && sops --version
 COPY --from=builder /deploy/node_modules ./node_modules/
 COPY --from=builder /deploy/dist ./dist/
 COPY --from=builder /deploy/package.json ./
-COPY packages/dispatcher/deploy/.env /app.env
-COPY packages/dispatcher/deploy/.sops.yaml /.sops.yaml
-COPY packages/dispatcher/deploy/entrypoint.sh /app/entrypoint.sh
-
-RUN chmod +x /app/entrypoint.sh
+COPY packages/gateway/deploy/.env /app.env
+COPY packages/gateway/deploy/.sops.yaml /.sops.yaml
+COPY packages/gateway/deploy/tx_dev_run.sh /run.sh
 
 ENV NODE_ENV=production
+ENV PORT=3001
+EXPOSE 3001
 
-ENTRYPOINT ["sh", "-c", "/app/entrypoint.sh"]
+ENTRYPOINT ["sh", "-c", "/run.sh"]
