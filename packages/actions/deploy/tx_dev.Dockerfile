@@ -16,7 +16,7 @@ FROM uhub.service.ucloud.cn/wudao/ci-node-slim:22p2
 WORKDIR /app
 
 ARG SOPS_VERSION=3.12.2
-ADD https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64 /usr/local/bin/sops
+COPY deploy/bin/sops-v${SOPS_VERSION}.linux.amd64 /usr/local/bin/sops
 RUN chmod +x /usr/local/bin/sops && sops --version
 
 COPY --from=builder /deploy/node_modules ./node_modules/
