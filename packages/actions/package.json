@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@mendable/firecrawl-js": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "express": "^4.21.0",
     "pino": "^9.4.0",
     "pino-pretty": "^11.2.2"

@@ -38,6 +38,11 @@ describe('GET /actions/list', () => {
     const names = res.body.map((a: { name: string }) => a.name)
     expect(names).toContain('search_web')
     expect(names).toContain('get_weather')
+    expect(names).toContain('kb_search')
+    expect(names).toContain('tianyancha_enrich')
+    expect(names).toContain('fxiaoke_create_lead')
+    expect(names).toContain('fxiaoke_query_lead')
+    expect(names).toHaveLength(6)
     for (const action of res.body) {
       expect(action).not.toHaveProperty('execute')
       expect(action).toHaveProperty('name')
