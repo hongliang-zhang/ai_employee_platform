@@ -27,3 +27,4 @@
 | [2026-05-08-tencent-cloud-docker-deploy-design.md](./2026-05-08-tencent-cloud-docker-deploy-design.md) | Completed | 腾讯云 Docker 部署设计：gateway/dispatcher 镜像构建、加密 env 与容器启动脚本 (2026-05-08) |
 | [2026-05-11-actions-service-design.md](./2026-05-11-actions-service-design.md) | Active | Actions Service 设计：三方 API 统一集成层，gateway 两条永不改变的路由，新增集成只改 Actions Service (2026-05-11) |
 | [2026-05-11-gateway-session-events-design.md](./2026-05-11-gateway-session-events-design.md) | Draft | Gateway Session Events 重设计：messages 升级为 append-only event log，harness 统一写入，对齐 Anthropic Managed Agents 架构 (2026-05-11) |
+| [2026-05-12-actions-third-party-design.md](./2026-05-12-actions-third-party-design.md) | Active | Actions Service 新增三方 API Action：fxiaoke 线索创建/查询、智谱知识库检索等集成 (2026-05-12) |
