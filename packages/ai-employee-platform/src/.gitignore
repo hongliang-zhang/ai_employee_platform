@@ -1,0 +1,2 @@
+# Re-include lib/ directory (overrides root .gitignore which excludes lib/ as build output)
+!lib/

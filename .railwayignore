@@ -1,0 +1,25 @@
+# Exclude unnecessary packages for ai-employee-platform deploy
+packages/actions
+packages/agent-sdk
+packages/db
+packages/dispatcher
+packages/gateway
+packages/sandbox-base
+
+# Exclude large binaries and CI tools
+deploy/
+
+# Exclude docs
+docs/
+*.md
+!packages/ai-employee-platform/**/*.md
+
+# Exclude CI/CD configs
+.gitlab-ci.yml
+.doc-gardening-prompt.md
+
+# Exclude test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/test/

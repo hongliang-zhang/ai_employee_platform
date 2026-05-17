@@ -7,6 +7,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "build": "pnpm --filter @ai-employee/platform build",
+    "start": "pnpm --filter @ai-employee/platform exec next start",
     "test": "pnpm -r test",
     "test:integration": "pnpm -r --if-present test:integration",
     "lint": "eslint packages"

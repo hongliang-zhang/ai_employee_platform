@@ -1,0 +1,5 @@
+[build]
+buildCommand = "pnpm --filter @ai-employee/platform build"
+
+[deploy]
+startCommand = "pnpm --filter @ai-employee/platform exec next start"
