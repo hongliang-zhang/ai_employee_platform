@@ -185,12 +185,7 @@
     overflow: hidden;
   }
   .hero-banner::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image: linear-gradient(hsl(42 11% 87% / 0.46) 1px, transparent 1px);
-    background-size: 100% 42px;
-    mask-image: linear-gradient(to bottom, transparent, black 18%, black 70%, transparent);
+    content: none;
   }
 
   /* ── Kanban left accent strips ── */

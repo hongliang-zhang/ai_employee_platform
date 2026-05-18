@@ -20,7 +20,7 @@ export function TeamOutputChart() {
 
   return (
     <div className="hero-banner card-shadow overflow-hidden px-5 py-5">
-      <div className="relative z-10 flex items-center justify-between border-b border-border pb-4">
+      <div className="relative z-10 flex items-center justify-between pb-4">
         <div>
           <p className="section-label">AI TEAM OUTPUT</p>
           <div className="mt-7 flex items-baseline gap-3">
