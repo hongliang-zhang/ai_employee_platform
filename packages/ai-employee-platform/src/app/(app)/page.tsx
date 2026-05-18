@@ -5,7 +5,6 @@ import {
   BarChart3,
   BookOpen,
   CheckCircle2,
-  ChevronRight,
   Clock,
   DollarSign,
   FileText,
@@ -16,9 +15,9 @@ import {
   Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { TeamOutputChart } from "@/components/team-output-chart"
 import { cn } from "@/lib/utils"
 
-const netWorthPath = "M 0 94 C 70 94 86 94 109 94 C 146 94 156 34 195 34 L 620 34"
 const activityPath = "M 0 82 C 50 82 74 78 102 69 C 150 53 164 71 205 56 C 248 40 279 44 320 38 C 365 31 393 46 430 32"
 
 const kpis = [
@@ -107,44 +106,7 @@ export default function DashboardPage() {
           })}
         </div>
 
-        <div className="hero-banner card-shadow px-5 py-5">
-          <div className="flex items-center justify-between border-b border-border pb-4">
-            <div>
-              <p className="section-label">AI TEAM OUTPUT</p>
-              <div className="mt-7 flex items-baseline gap-3">
-                <p className="text-[42px] font-semibold leading-none tracking-[-0.05em] tabular">47</p>
-                <p className="text-[15px] font-semibold text-emerald-700">+12.4%</p>
-              </div>
-              <p className="mt-2 text-[13px] text-muted-foreground">Tasks completed today across support, data and sales workflows.</p>
-            </div>
-            <button className="rounded-full border border-border bg-white px-3 py-2 text-[12px] font-semibold shadow-sm">
-              Forecast
-              <ChevronRight className="ml-1 inline h-3 w-3" />
-            </button>
-          </div>
-
-          <div className="relative h-[250px] overflow-hidden">
-            <svg viewBox="0 0 620 132" className="absolute inset-x-0 top-8 h-[180px] w-full overflow-visible" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="area" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="rgb(56 189 248)" stopOpacity="0.30" />
-                  <stop offset="100%" stopColor="rgb(56 189 248)" stopOpacity="0.02" />
-                </linearGradient>
-              </defs>
-              {[34, 64, 94, 124].map((y) => (
-                <line key={y} x1="0" x2="620" y1={y} y2={y} stroke="rgb(222 217 207)" strokeDasharray="4 6" />
-              ))}
-              <path d={`${netWorthPath} L 620 132 L 0 132 Z`} fill="url(#area)" />
-              <path d={netWorthPath} fill="none" stroke="rgb(14 165 233)" strokeWidth="3" strokeLinecap="round" />
-              <circle cx="620" cy="34" r="5" fill="rgb(14 165 233)" />
-            </svg>
-            <div className="absolute bottom-5 left-0 right-0 flex justify-center gap-7 text-[13px] font-semibold text-muted-foreground">
-              {["1W", "1M", "3M", "YTD", "ALL"].map((range, index) => (
-                <span key={range} className={cn("rounded-[8px] px-3 py-2", index === 0 && "bg-muted text-foreground")}>{range}</span>
-              ))}
-            </div>
-          </div>
-        </div>
+        <TeamOutputChart />
 
         <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
           <div className="surface card-shadow overflow-hidden">
