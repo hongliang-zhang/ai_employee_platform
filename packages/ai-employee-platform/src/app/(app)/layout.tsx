@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, Users, UserPlus, Wrench, GitBranch,
   BarChart3, TrendingUp, Settings, ChevronDown, Bell, Zap,
-  CheckCircle2, AlertTriangle, Info,
+  CheckCircle2, AlertTriangle, Info, Plus, HelpCircle, Gift,
 } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
@@ -56,10 +56,10 @@ function NavItem({ href, icon: Icon, label, active }: { href: string; icon: Reac
     <Link href={href}>
       <div
         className={cn(
-          "flex items-center gap-2.5 rounded-[8px] px-2.5 py-[7px] text-[13px] font-medium transition-all duration-100",
+          "flex items-center gap-2.5 rounded-[8px] px-2.5 py-[8px] text-[13.5px] font-medium transition-all duration-100",
           active
-            ? "bg-[hsl(240_5%_10%)] text-[hsl(220_13%_93%)]"
-            : "text-[hsl(var(--sidebar-text))] hover:bg-[hsl(240_5%_8%)] hover:text-[hsl(220_13%_80%)]"
+            ? "bg-[hsl(var(--sidebar-accent-active))] text-[hsl(var(--sidebar-text-active))]"
+            : "text-[hsl(var(--sidebar-text))] hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-text-active))]"
         )}
       >
         <Icon
@@ -81,25 +81,24 @@ function Sidebar() {
 
   return (
     <aside
-      className="flex h-screen w-[220px] flex-shrink-0 flex-col"
+      className="flex h-screen w-[238px] flex-shrink-0 flex-col"
       style={{ background: "hsl(var(--sidebar-bg))", borderRight: "1px solid hsl(var(--sidebar-border))" }}
     >
       {/* Logo */}
       <div
-        className="flex h-[52px] items-center justify-between px-4"
+        className="flex h-[64px] items-center justify-between px-5"
         style={{ borderBottom: "1px solid hsl(var(--sidebar-border))" }}
       >
         <div className="flex items-center gap-2.5">
           <div
-            className="flex h-[28px] w-[28px] items-center justify-center rounded-[8px]"
+            className="flex h-[29px] w-[29px] items-center justify-center rounded-full border border-foreground/15"
             style={{
-              background: "linear-gradient(135deg, hsl(237 58% 55%), hsl(220 65% 50%))",
-              boxShadow: "0 0 12px hsl(237 58% 55% / 0.35)",
+              background: "radial-gradient(circle at 50% 50%, hsl(0 0% 100%) 34%, hsl(235 24% 8%) 36%, hsl(235 24% 8%) 62%, hsl(0 0% 100%) 64%)",
             }}
           >
-            <Zap className="h-[13px] w-[13px] text-white" />
+            <span className="sr-only">AI Employee</span>
           </div>
-          <span className="text-[13.5px] font-semibold tracking-tight" style={{ color: "hsl(220 13% 88%)", letterSpacing: "-0.01em" }}>
+          <span className="text-[18px] font-semibold tracking-tight" style={{ color: "hsl(var(--foreground))", letterSpacing: "-0.025em" }}>
             AI Employee
           </span>
         </div>
@@ -107,14 +106,14 @@ function Sidebar() {
         <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
           <DropdownMenuTrigger asChild>
             <button
-              className="relative flex h-7 w-7 items-center justify-center rounded-[7px] transition-colors hover:bg-[hsl(240_5%_9%)]"
+              className="relative flex h-8 w-8 items-center justify-center rounded-full border border-transparent transition-colors hover:border-border hover:bg-white"
               style={{ color: "hsl(var(--sidebar-text))" }}
             >
               <Bell className="h-[14px] w-[14px]" />
               {unreadCount > 0 && (
                 <span
                   className="absolute -right-0.5 -top-0.5 flex h-[14px] w-[14px] items-center justify-center rounded-full text-[8px] font-bold text-white"
-                  style={{ background: "hsl(237 58% 62%)" }}
+                  style={{ background: "hsl(257 43% 48%)" }}
                 >
                   {unreadCount}
                 </span>
@@ -157,7 +156,7 @@ function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-2.5 py-4 space-y-5">
+      <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
         {navSections.map((section) => (
           <div key={section.label}>
             <p className="mb-1.5 px-2.5 section-label">{section.label}</p>
@@ -171,24 +170,24 @@ function Sidebar() {
       </nav>
 
       {/* Bottom */}
-      <div className="px-2.5 pb-3 pt-2 space-y-0.5" style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}>
+      <div className="px-3 pb-4 pt-3 space-y-2" style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}>
         <NavItem href="/settings" icon={Settings} label="Settings" active={isActive("/settings")} />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="flex w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5 text-[13px] font-medium transition-colors hover:bg-[hsl(240_5%_8%)]"
+              className="flex w-full items-center gap-2.5 rounded-[10px] px-2 py-2 text-[13px] font-medium transition-colors hover:bg-white"
               style={{ color: "hsl(var(--sidebar-text))" }}
             >
               <div className="relative">
                 <Avatar className="h-[26px] w-[26px] shrink-0">
-                  <AvatarFallback className="text-white text-[10px] font-bold" style={{ background: "linear-gradient(135deg, hsl(237 58% 55%), hsl(220 65% 50%))" }}>
+                  <AvatarFallback className="text-white text-[10px] font-bold" style={{ background: "hsl(235 24% 8%)" }}>
                     HL
                   </AvatarFallback>
                 </Avatar>
                 <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 border border-[hsl(var(--sidebar-bg))]" />
               </div>
-              <span className="flex-1 text-left truncate text-[hsl(220_13%_75%)]">Hongliang</span>
+              <span className="flex-1 text-left truncate text-[hsl(var(--foreground))]">Hongliang</span>
               <ChevronDown className="h-3 w-3 shrink-0 opacity-30" />
             </button>
           </DropdownMenuTrigger>
@@ -216,6 +215,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-[hsl(var(--background))]">
       <Sidebar />
       <main className="flex-1 overflow-y-auto app-main">
+        <div className="sticky top-0 z-20 flex h-[64px] items-center justify-end gap-2 border-b border-border/70 bg-[hsl(var(--background)/0.84)] px-6 backdrop-blur-xl">
+          <button className="hidden h-9 items-center gap-2 rounded-full border border-border bg-white px-3 text-[13px] font-semibold text-foreground shadow-sm md:flex">
+            <Gift className="h-3.5 w-3.5" />
+            Get $25
+          </button>
+          <button className="flex h-9 items-center gap-2 rounded-full border border-border bg-white px-3 text-[13px] font-semibold text-foreground shadow-sm">
+            <Plus className="h-3.5 w-3.5" />
+            Account
+          </button>
+          <button className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm">
+            <HelpCircle className="h-4 w-4" />
+          </button>
+          <button className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm">
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
         {children}
       </main>
     </div>

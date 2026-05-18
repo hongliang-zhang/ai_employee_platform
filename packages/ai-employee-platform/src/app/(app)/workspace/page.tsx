@@ -178,7 +178,7 @@ const teams: Team[] = [
     activeToday: 47,
     members: [
       {
-        id: "cs",
+        id: "1",
         name: "Customer Support Agent",
         initials: "CS",
         gradient: "from-blue-500 to-blue-700",
@@ -210,7 +210,7 @@ const teams: Team[] = [
     activeToday: 21,
     members: [
       {
-        id: "da",
+        id: "2",
         name: "Data Analyst",
         initials: "DA",
         gradient: "from-emerald-500 to-emerald-700",
@@ -232,7 +232,7 @@ const teams: Team[] = [
     activeToday: 9,
     members: [
       {
-        id: "sa",
+        id: "3",
         name: "Sales Assistant",
         initials: "SA",
         gradient: "from-orange-500 to-orange-600",
@@ -262,6 +262,22 @@ const sharedKnowledgeByTeam: Record<string, { id: string; name: string; type: st
     { id: "sl2", name: "email_sequences.json", type: "JSON", size: "55 KB", updated: "Yesterday" },
     { id: "sl3", name: "competitor_matrix.xlsx", type: "Spreadsheet", size: "210 KB", updated: "5 days ago" },
   ],
+}
+
+function agentToMember(agentId: string): TeamMember | null {
+  const agent = agentPool.find((a) => a.id === agentId)
+  if (!agent) return null
+
+  return {
+    id: agent.id,
+    name: agent.name,
+    initials: agent.initials,
+    gradient: agent.gradient,
+    role: agent.role,
+    status: agent.status,
+    sessionsToday: agent.status === "active" ? 8 : agent.status === "testing" ? 3 : 0,
+    lastActive: agent.status === "inactive" ? "Never" : "Just now",
+  }
 }
 
 function StatusDot({ status }: { status: TeamMember["status"] }) {
@@ -296,7 +312,7 @@ function MemberAvatar({ member, size = "md" }: { member: TeamMember; size?: "sm"
 
 function TeamCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
   return (
-    <div className="rounded-xl border border-border/50 bg-card card-shadow p-5 flex flex-col gap-4 hover:border-border transition-colors group">
+    <div className="surface card-shadow p-5 flex flex-col gap-4 hover:card-shadow-hover transition-all group">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${team.gradientFrom} ${team.gradientTo} shadow-sm`}>
@@ -324,14 +340,14 @@ function TeamCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-4 border-t border-border/40 pt-3">
+      <div className="flex items-center gap-4 border-t border-border pt-3">
         <div className="flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-[11px] text-muted-foreground"><span className="font-medium text-foreground">{team.activeToday}</span> sessions today</span>
         </div>
         <div className="flex items-center gap-1.5">
           <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-[11px] text-muted-foreground"><span className="font-medium text-foreground">{team.sharedKnowledge}</span> shared KB</span>
+          <span className="text-[11px] text-muted-foreground"><span className="font-medium text-foreground">{team.sharedKnowledge}</span> files</span>
         </div>
       </div>
 
@@ -348,14 +364,14 @@ function TeamCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
   )
 }
 
-function TeamDetail({ team, onBack }: { team: Team; onBack: () => void }) {
+function TeamDetail({ team, onBack, onAddMember }: { team: Team; onBack: () => void; onAddMember: (teamId: string, agentId: string) => void }) {
   const files = sharedKnowledgeByTeam[team.id] ?? []
   const [addMemberOpen, setAddMemberOpen] = useState(false)
 
   return (
     <div className="flex h-full gap-0">
-      <div className="w-64 shrink-0 border-r border-border/50 flex flex-col">
-        <div className="p-5 border-b border-border/40 space-y-3">
+      <div className="w-72 shrink-0 border-r border-border bg-[hsl(var(--sidebar-bg))] flex flex-col">
+        <div className="p-5 border-b border-border space-y-3">
           <button
             onClick={onBack}
             className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
@@ -400,14 +416,14 @@ function TeamDetail({ team, onBack }: { team: Team; onBack: () => void }) {
           </div>
         </div>
 
-        <div className="p-4 border-t border-border/40 grid grid-cols-2 gap-3">
-          <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+        <div className="p-4 border-t border-border grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-white p-2.5 text-center border border-border">
             <p className="text-[18px] font-bold leading-none">{team.activeToday}</p>
             <p className="text-[10px] text-muted-foreground mt-1">Sessions today</p>
           </div>
-          <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+          <div className="rounded-xl bg-white p-2.5 text-center border border-border">
             <p className="text-[18px] font-bold leading-none">{team.sharedKnowledge}</p>
-            <p className="text-[10px] text-muted-foreground mt-1">Shared KB</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Context files</p>
           </div>
         </div>
       </div>
@@ -419,7 +435,7 @@ function TeamDetail({ team, onBack }: { team: Team; onBack: () => void }) {
               <Users className="h-3 w-3" /> Members
             </TabsTrigger>
             <TabsTrigger value="knowledge" className="text-xs h-7 gap-1.5">
-              <BookOpen className="h-3 w-3" /> Shared Knowledge
+              <BookOpen className="h-3 w-3" /> Team File System
             </TabsTrigger>
             <TabsTrigger value="settings" className="text-xs h-7 gap-1.5">
               <Settings2 className="h-3 w-3" /> Settings
@@ -428,7 +444,7 @@ function TeamDetail({ team, onBack }: { team: Team; onBack: () => void }) {
 
           <TabsContent value="members" className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-[12px] text-muted-foreground">{team.members.length} member{team.members.length !== 1 ? "s" : ""} · Configure individual agents</p>
+              <p className="text-[12px] text-muted-foreground">{team.members.length} member{team.members.length !== 1 ? "s" : ""} · Agents share the same team context</p>
               <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAddMemberOpen(true)}>
                 <UserPlus className="h-3.5 w-3.5" /> Add Member
               </Button>
@@ -437,7 +453,7 @@ function TeamDetail({ team, onBack }: { team: Team; onBack: () => void }) {
               {team.members.map((m) => (
                 <div
                   key={m.id}
-                  className="rounded-xl border border-border/50 bg-card card-shadow p-4 space-y-3 hover:border-border transition-colors"
+                  className="surface card-shadow p-4 space-y-3 hover:card-shadow-hover transition-all"
                 >
                   <div className="flex items-center gap-3">
                     <MemberAvatar member={m} size="lg" />
@@ -464,7 +480,7 @@ function TeamDetail({ team, onBack }: { team: Team; onBack: () => void }) {
 
               <div
                 onClick={() => setAddMemberOpen(true)}
-                className="rounded-xl border border-dashed border-border/50 bg-card/50 p-4 flex flex-col items-center justify-center gap-2 min-h-[180px] text-center hover:border-border hover:bg-card transition-colors cursor-pointer group"
+                className="rounded-[18px] border border-dashed border-border bg-white/60 p-4 flex flex-col items-center justify-center gap-2 min-h-[180px] text-center hover:bg-white transition-colors cursor-pointer group"
               >
                 <div className="h-10 w-10 rounded-full border border-dashed border-border flex items-center justify-center group-hover:border-muted-foreground transition-colors">
                   <Plus className="h-4 w-4 text-muted-foreground" />
@@ -479,13 +495,13 @@ function TeamDetail({ team, onBack }: { team: Team; onBack: () => void }) {
               teamName={team.name}
               existingMemberIds={team.members.map((m) => m.id)}
               onClose={() => setAddMemberOpen(false)}
-              onAdd={() => {}}
+              onAdd={(agentId) => onAddMember(team.id, agentId)}
             />
           )}
 
           <TabsContent value="knowledge" className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-[12px] text-muted-foreground">{files.length} files · Accessible to all team members</p>
+              <p className="text-[12px] text-muted-foreground">{files.length} files · Read by every agent before work starts</p>
               <Button size="sm" className="h-8 gap-1.5 text-xs">
                 <DownloadCloud className="h-3.5 w-3.5" /> Upload file
               </Button>
@@ -494,7 +510,7 @@ function TeamDetail({ team, onBack }: { team: Team; onBack: () => void }) {
               {files.map((f) => (
                 <div
                   key={f.id}
-                  className="flex items-center gap-3 rounded-xl border border-border/50 bg-card p-3.5 hover:border-border transition-colors group"
+                  className="flex items-center gap-3 rounded-[16px] border border-border bg-white p-3.5 hover:shadow-sm transition-all group"
                 >
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted shrink-0">
                     <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
@@ -586,37 +602,51 @@ function TeamDetail({ team, onBack }: { team: Team; onBack: () => void }) {
 
 export default function WorkspacePage() {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+  const [workspaceTeams, setWorkspaceTeams] = useState<Team[]>(teams)
 
-  const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? null
+  const selectedTeam = workspaceTeams.find((t) => t.id === selectedTeamId) ?? null
+
+  const handleAddMember = (teamId: string, agentId: string) => {
+    const member = agentToMember(agentId)
+    if (!member) return
+
+    setWorkspaceTeams((current) =>
+      current.map((team) => {
+        if (team.id !== teamId || team.members.some((existing) => existing.id === agentId)) {
+          return team
+        }
+        return {
+          ...team,
+          members: [...team.members, member],
+        }
+      })
+    )
+  }
 
   if (selectedTeam) {
     return (
       <div className="flex h-full flex-col">
-        <TeamDetail team={selectedTeam} onBack={() => setSelectedTeamId(null)} />
+        <TeamDetail team={selectedTeam} onBack={() => setSelectedTeamId(null)} onAddMember={handleAddMember} />
       </div>
     )
   }
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="p-6 space-y-6">
+      <div className="mx-auto w-full max-w-[1320px] p-8 space-y-6">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-4">
             <div className="icon-box icon-box-primary h-11 w-11">
               <Zap className="h-[19px] w-[19px]" />
             </div>
             <div>
-              <h1 className="text-[26px] font-extrabold leading-none" style={{ letterSpacing: "-0.03em" }}>Workspace</h1>
-              <p className="text-[13px] text-muted-foreground mt-1.5">Manage teams and shared resources</p>
+              <h1 className="text-[30px] font-semibold leading-none tracking-[-0.03em]">Workspace</h1>
+              <p className="text-[13.5px] text-muted-foreground mt-2">Each team has a shared file system agents use as common context.</p>
             </div>
           </div>
           <Button
             size="sm"
-            className="h-9 gap-2 px-4 text-[13px] font-semibold"
-            style={{
-              background: "linear-gradient(135deg, hsl(238 62% 51%), hsl(220 65% 54%))",
-              boxShadow: "0 4px 16px hsl(238 62% 51% / 0.3), 0 1px 0 hsl(238 62% 72% / 0.2) inset",
-            }}
+            className="origin-cta h-9 gap-2 rounded-full px-4 text-[13px] font-semibold"
           >
             <Plus className="h-4 w-4" /> New Team
           </Button>
@@ -624,9 +654,9 @@ export default function WorkspacePage() {
 
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "Teams", value: teams.length, icon: Users, boxClass: "icon-box-primary" },
-            { label: "Total Agents", value: teams.reduce((a, t) => a + t.members.length, 0), icon: MessageSquare, boxClass: "icon-box-blue" },
-            { label: "Sessions Today", value: teams.reduce((a, t) => a + t.activeToday, 0), icon: Activity, boxClass: "icon-box-emerald" },
+            { label: "Teams", value: workspaceTeams.length, icon: Users, boxClass: "icon-box-primary" },
+            { label: "Total Agents", value: workspaceTeams.reduce((a, t) => a + t.members.length, 0), icon: MessageSquare, boxClass: "icon-box-blue" },
+            { label: "Context Files", value: workspaceTeams.reduce((a, t) => a + t.sharedKnowledge, 0), icon: BookOpen, boxClass: "icon-box-emerald" },
           ].map(({ label, value, icon: Icon, boxClass }) => (
             <div key={label} className="surface card-shadow px-5 py-4 flex items-center gap-4">
               <div className={cn("icon-box h-10 w-10", boxClass)}>
@@ -643,7 +673,7 @@ export default function WorkspacePage() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">Teams</p>
           <div className="grid gap-4 sm:grid-cols-2">
-            {teams.map((team) => (
+            {workspaceTeams.map((team) => (
               <TeamCard key={team.id} team={team} onOpen={() => setSelectedTeamId(team.id)} />
             ))}
 
