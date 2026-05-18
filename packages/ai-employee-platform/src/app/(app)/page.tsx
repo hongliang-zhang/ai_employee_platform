@@ -207,9 +207,9 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <aside className="space-y-4">
+      <aside className="space-y-5">
         {railCards.map((card) => (
-          <Link key={card.title} href={card.href}>
+          <Link key={card.title} href={card.href} className="block">
             <div
               className={cn(
                 "soft-rail-card p-5 transition-transform hover:-translate-y-0.5",
