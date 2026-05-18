@@ -18,6 +18,9 @@ import { Button } from "@/components/ui/button"
 import { TeamOutputChart } from "@/components/team-output-chart"
 import { cn } from "@/lib/utils"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 const activityPath = "M 0 82 C 50 82 74 78 102 69 C 150 53 164 71 205 56 C 248 40 279 44 320 38 C 365 31 393 46 430 32"
 
 const kpis = [

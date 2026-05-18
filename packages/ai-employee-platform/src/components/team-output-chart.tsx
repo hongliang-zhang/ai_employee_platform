@@ -35,25 +35,27 @@ export function TeamOutputChart() {
         </button>
       </div>
 
-      <div className="relative z-0 h-[250px] overflow-hidden">
-        <svg viewBox="0 0 620 132" className="absolute inset-x-0 top-7 h-[178px] w-full" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="team-output-area" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="rgb(56 189 248)" stopOpacity="0.30" />
-              <stop offset="100%" stopColor="rgb(56 189 248)" stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
-          <g>
-            {[34, 64, 94, 124].map((y) => (
-              <line key={y} x1="0" x2="620" y1={y} y2={y} stroke="rgb(222 217 207)" strokeDasharray="4 6" />
-            ))}
-          </g>
-          <path d={`${active.path} L 620 132 L 0 132 Z`} fill="url(#team-output-area)" />
-          <path d={active.path} fill="none" stroke="rgb(14 165 233)" strokeWidth="3" strokeLinecap="round" />
-          <circle cx="620" cy={activeRange === "1W" ? 34 : activeRange === "1M" ? 18 : activeRange === "3M" ? 22 : activeRange === "YTD" ? 16 : 10} r="5" fill="rgb(14 165 233)" />
-        </svg>
+      <div className="relative z-0 pt-5">
+        <div className="relative h-[170px] overflow-hidden">
+          <svg viewBox="0 0 620 132" className="absolute inset-0 h-full w-full" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="team-output-area" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="rgb(56 189 248)" stopOpacity="0.30" />
+                <stop offset="100%" stopColor="rgb(56 189 248)" stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+            <g>
+              {[28, 58, 88, 118].map((y) => (
+                <line key={y} x1="0" x2="620" y1={y} y2={y} stroke="rgb(222 217 207)" strokeDasharray="4 6" />
+              ))}
+            </g>
+            <path d={`${active.path} L 620 132 L 0 132 Z`} fill="url(#team-output-area)" />
+            <path d={active.path} fill="none" stroke="rgb(14 165 233)" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="620" cy={activeRange === "1W" ? 34 : activeRange === "1M" ? 18 : activeRange === "3M" ? 22 : activeRange === "YTD" ? 16 : 10} r="5" fill="rgb(14 165 233)" />
+          </svg>
+        </div>
 
-        <div className="absolute bottom-5 left-0 right-0 z-10 flex justify-center gap-3 text-[13px] font-semibold text-muted-foreground sm:gap-5">
+        <div className="mt-4 flex justify-center gap-3 text-[13px] font-semibold text-muted-foreground sm:gap-5">
           {ranges.map((range) => (
             <button
               key={range.key}
