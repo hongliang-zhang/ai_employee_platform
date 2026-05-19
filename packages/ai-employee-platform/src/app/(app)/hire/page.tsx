@@ -283,7 +283,7 @@ export default function HirePage() {
   )
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-[calc(100vh-64px)] flex-col overflow-hidden">
       {/* Top bar */}
       <div className="shrink-0 border-b border-border/60 bg-card/80 px-8 py-5" style={{ backdropFilter: "blur(8px)" }}>
         <div className="flex items-center justify-between">
@@ -1031,7 +1031,7 @@ export default function HirePage() {
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 border-t border-border/60 bg-card/60 px-8 py-4">
+      <div className="shrink-0 border-t border-border/60 bg-card/80 px-8 py-4 backdrop-blur-xl">
         <div className="flex items-center justify-between max-w-5xl">
           <Button
             variant="ghost"
