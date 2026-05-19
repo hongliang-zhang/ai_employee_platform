@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TeamOutputChart } from "@/components/team-output-chart"
+import { needsHumanTaskCount } from "@/lib/collaboration-metrics"
 import { cn } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
@@ -39,8 +40,8 @@ const activity = [
 const railCards = [
   {
     label: "ACTION REQUIRED",
-    title: "2 approvals need review",
-    body: "Refund and HubSpot cleanup are blocked until you confirm the risk.",
+    title: `${needsHumanTaskCount} approvals need review`,
+    body: "Refund, contract delivery and HubSpot cleanup are blocked until you confirm the risk.",
     href: "/collaboration",
     tone: "blue",
   },

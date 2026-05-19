@@ -28,6 +28,7 @@ import {
   ChevronRight,
   GitBranch,
 } from "lucide-react"
+import { needsHumanTaskCount } from "@/lib/collaboration-metrics"
 import { cn } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -53,6 +54,7 @@ type Task = {
   time: string
   needsHuman: boolean
   humanReason?: string
+  originalFeedback: string
   stages: Stage[]
 }
 
@@ -150,6 +152,7 @@ const recentTasks: Task[] = [
     time: "3 min ago",
     needsHuman: true,
     humanReason: "金额超过 $100",
+    originalFeedback: "Lisa Wang: 商品与描述不符，我想申请订单 #4821 的 $124.00 退款。",
     stages: [
       { type: "input", label: "工单触发", content: "Order #4821 refund request received from Lisa Wang — $124.00", time: "10:21:03" },
       { type: "thinking", label: "查询账户及订单", content: "Checking order status... Shipped 2026-05-10. Refund policy: 30-day window, OK.", time: "10:21:05" },
@@ -167,6 +170,7 @@ const recentTasks: Task[] = [
     time: "18 min ago",
     needsHuman: true,
     humanReason: "合同金额超过 $10,000",
+    originalFeedback: "Jane S.: 请把已签合同发给 Acme Corp，deal #D-2841，合同金额 $28,000。",
     stages: [
       { type: "input", label: "任务指派", content: "Assigned by Jane S.: Send signed contract to Acme Corp, deal #D-2841", time: "10:06:10" },
       { type: "thinking", label: "验证合同内容", content: "Contract value: $28,000/yr. Reviewing terms... all clauses look standard.", time: "10:06:14" },
@@ -184,6 +188,7 @@ const recentTasks: Task[] = [
     time: "25 min ago",
     needsHuman: true,
     humanReason: "批量删除操作需确认",
+    originalFeedback: "系统定时任务 lead_cleanup：扫描 HubSpot 重复线索，清理前保留人工确认。",
     stages: [
       { type: "input", label: "定时任务触发", content: "Scheduled: lead_cleanup — scan HubSpot for duplicates", time: "09:59:00" },
       { type: "tool_call", label: "Tool: HubSpot", content: "Scanned 3,214 records\nFound 45 duplicates across 38 companies\n12 have activity in last 30 days", time: "09:59:18" },
@@ -201,6 +206,7 @@ const recentTasks: Task[] = [
     status: "completed",
     time: "5 min ago",
     needsHuman: false,
+    originalFeedback: "Customer ticket #4823: I can't log in, forgot my password.",
     stages: [
       { type: "input", label: "Ticket received", content: "Customer ticket #4823: 'I can't log in, forgot my password'", time: "10:19:01" },
       { type: "thinking", label: "识别请求类型", content: "Standard password reset request — tier-1, auto-resolvable.", time: "10:19:03" },
@@ -218,6 +224,7 @@ const recentTasks: Task[] = [
     status: "completed",
     time: "1h ago",
     needsHuman: false,
+    originalFeedback: "Scheduled trigger: weekly_metrics_report — every Monday 09:00.",
     stages: [
       { type: "input", label: "Scheduled trigger", content: "weekly_metrics_report — every Monday 09:00", time: "09:00:00" },
       { type: "tool_call", label: "Tool: Analytics DB", content: "Query: SELECT * FROM events WHERE date > last_monday\nRows returned: 8,421", time: "09:00:08" },
@@ -236,6 +243,7 @@ const recentTasks: Task[] = [
     status: "in_progress",
     time: "2h ago",
     needsHuman: false,
+    originalFeedback: "Jane S.: Find 10 qualified enterprise leads in fintech, more than 200 employees.",
     stages: [
       { type: "input", label: "Task assigned by Jane S.", content: "Find 10 qualified enterprise leads in fintech, >200 employees", time: "08:24:00" },
       { type: "thinking", label: "Defining ICP criteria", content: "Fintech, Series B+, 200-2000 employees, US/EU, using legacy banking software.", time: "08:24:05" },
@@ -252,6 +260,7 @@ const recentTasks: Task[] = [
     status: "completed",
     time: "3h ago",
     needsHuman: false,
+    originalFeedback: "Scheduled: daily KB freshness check — review support entries older than 30 days.",
     stages: [
       { type: "input", label: "Scheduled: KB review", content: "Daily KB freshness check — review entries older than 30 days", time: "07:00:00" },
       { type: "tool_call", label: "Tool: Knowledge Base", content: "Found 3 stale entries. Comparing with current policy docs...", time: "07:00:12" },
@@ -270,6 +279,7 @@ const recentTasks: Task[] = [
     status: "completed",
     time: "4h ago",
     needsHuman: false,
+    originalFeedback: "Scheduled: monthly Q2 pipeline forecast — compile from CRM data.",
     stages: [
       { type: "input", label: "Scheduled: Q2 forecast", content: "Monthly pipeline forecast — compile from CRM data", time: "06:00:00" },
       { type: "tool_call", label: "Tool: HubSpot CRM", content: "Fetched 142 open deals, total pipeline: $1.24M\nClose probability weighted: $480K", time: "06:00:20" },
@@ -288,6 +298,7 @@ const recentTasks: Task[] = [
     status: "failed",
     time: "5h ago",
     needsHuman: false,
+    originalFeedback: "Ticket #4817 was flagged as Tier-2 billing dispute and needs escalation.",
     stages: [
       { type: "input", label: "Escalation triggered", content: "Ticket #4817 flagged as Tier-2. Attempting to create Linear issue.", time: "05:12:01" },
       { type: "tool_call", label: "Tool: Linear (failed)", content: "POST /issues\nError: Connection timeout after 10s\nLinear API unreachable — possible outage", time: "05:12:11", error: true },
@@ -477,17 +488,17 @@ export default function CollaborationPage() {
           {/* Needs Human */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 mb-2">
-              <UserCheck className="h-3.5 w-3.5 text-amber-400" />
-              <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Needs Human</p>
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
-                {humanTasks.length}
+              <UserCheck className="h-3.5 w-3.5 text-amber-700" />
+              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Needs Human</p>
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-700 text-[9px] font-bold text-white">
+                {needsHumanTaskCount}
               </span>
             </div>
             {humanTasks.map((task) => (
               <div
                 key={task.id}
                 onClick={() => setSelectedTaskId(task.id)}
-                className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 hover:border-amber-500/30 hover:bg-amber-500/8 transition-colors cursor-pointer"
+                className="flex items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5 hover:border-amber-400 hover:bg-amber-100/60 transition-colors cursor-pointer"
               >
                 <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br", task.gradient)}>
                   <span className="text-[9px] font-bold text-white">{task.initials}</span>
@@ -499,14 +510,14 @@ export default function CollaborationPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 border border-amber-500/20">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-950">
                     <UserCheck className="h-2.5 w-2.5" />
                     需要人工
                   </span>
                   {task.humanReason && (
-                    <span className="text-[10px] text-amber-400/70">{task.humanReason}</span>
+                    <span className="rounded-md border border-amber-300 bg-white px-2 py-0.5 text-[10px] font-medium text-amber-900">{task.humanReason}</span>
                   )}
-                  <ChevronRight className="h-3.5 w-3.5 text-amber-400/40" />
+                  <ChevronRight className="h-3.5 w-3.5 text-amber-700" />
                 </div>
               </div>
             ))}
@@ -822,6 +833,15 @@ export default function CollaborationPage() {
 
             {/* Stages */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+              <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-3">
+                <div className="mb-1.5 flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5 text-sky-700" />
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-sky-800">用户原始反馈</p>
+                </div>
+                <p className="text-[12px] leading-relaxed text-slate-700">
+                  {selectedTask.originalFeedback}
+                </p>
+              </div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 mb-3">
                 Execution trace
               </p>
@@ -861,7 +881,7 @@ export default function CollaborationPage() {
                   value={humanGuidance[selectedTask.id] ?? ""}
                   onChange={(e) => setHumanGuidance((prev) => ({ ...prev, [selectedTask.id]: e.target.value }))}
                   placeholder="e.g., 可以退款，客户反映确实是质量问题，优先处理..."
-                  className="w-full rounded-xl border border-[hsl(240_5%_16%)] bg-[hsl(240_5%_9%)] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-foreground placeholder:text-muted-foreground/40 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(237_58%_62%/0.2)] resize-none"
+                  className="w-full rounded-xl border border-amber-200 bg-white px-3.5 py-2.5 text-[12.5px] leading-relaxed text-slate-900 shadow-sm placeholder:text-slate-400 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 resize-none"
                 />
                 <div className="flex gap-2">
                   <Button
