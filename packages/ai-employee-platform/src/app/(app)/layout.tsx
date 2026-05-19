@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, Users, UserPlus, Wrench, GitBranch,
   BarChart3, TrendingUp, Settings, ChevronDown, Bell, Zap,
-  CheckCircle2, AlertTriangle, Info, Plus, HelpCircle, Gift,
+  CheckCircle2, AlertTriangle, Info, HelpCircle, Gift,
 } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
@@ -220,16 +220,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Gift className="h-3.5 w-3.5" />
             Get $25
           </button>
-          <button className="flex h-9 items-center gap-2 rounded-full border border-border bg-white px-3 text-[13px] font-semibold text-foreground shadow-sm">
-            <Plus className="h-3.5 w-3.5" />
-            Account
-          </button>
           <button className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm">
             <HelpCircle className="h-4 w-4" />
           </button>
-          <button className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm">
+          <Link href="/settings" className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition-colors hover:bg-muted">
             <Settings className="h-4 w-4" />
-          </button>
+          </Link>
         </div>
         {children}
       </main>

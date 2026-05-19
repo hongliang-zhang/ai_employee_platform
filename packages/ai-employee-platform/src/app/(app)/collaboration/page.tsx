@@ -473,7 +473,6 @@ export default function CollaborationPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="scheduled" className="text-xs h-7">Scheduled</TabsTrigger>
-          <TabsTrigger value="channels" className="text-xs h-7">Channels</TabsTrigger>
         </TabsList>
 
         {/* ── Tasks ── */}
@@ -793,21 +792,6 @@ export default function CollaborationPage() {
           </div>
         </TabsContent>
 
-        {/* ── Channels ── */}
-        <TabsContent value="channels">
-          <div className="flex flex-col items-center py-16 text-center">
-            <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center mb-4">
-              <Zap className="h-6 w-6 text-muted-foreground/40" />
-            </div>
-            <p className="text-[14px] font-semibold">Channels 已移至各 Agent 详情页</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-              每个 Agent 的渠道配置现在在该 Agent 详情页的「Channels」标签中管理。
-            </p>
-            <Button variant="outline" size="sm" className="mt-5 gap-1.5" onClick={() => window.location.href = "/employees"}>
-              前往 AI Team <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </TabsContent>
       </Tabs>
 
       {/* ── Task slide-out panel ── */}

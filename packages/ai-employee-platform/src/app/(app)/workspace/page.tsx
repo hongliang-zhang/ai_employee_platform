@@ -166,6 +166,14 @@ type Team = {
   gradientTo: string
 }
 
+type TeamFile = {
+  id: string
+  name: string
+  type: string
+  size: string
+  updated: string
+}
+
 const teams: Team[] = [
   {
     id: "support",
@@ -245,7 +253,7 @@ const teams: Team[] = [
   },
 ]
 
-const sharedKnowledgeByTeam: Record<string, { id: string; name: string; type: string; size: string; updated: string }[]> = {
+const sharedKnowledgeByTeam: Record<string, TeamFile[]> = {
   support: [
     { id: "sk1", name: "customer_faq.md", type: "Markdown", size: "24 KB", updated: "2 days ago" },
     { id: "sk2", name: "refund_policy.pdf", type: "PDF", size: "1.2 MB", updated: "1 week ago" },
@@ -264,6 +272,56 @@ const sharedKnowledgeByTeam: Record<string, { id: string; name: string; type: st
   ],
 }
 
+const teamTemplates = [
+  {
+    id: "support",
+    name: "Customer Operations",
+    description: "Ticket triage, refund decisions, escalation rules, and customer-facing responses.",
+    gradientFrom: "from-blue-500",
+    gradientTo: "to-blue-700",
+    files: [
+      { name: "support_playbook.md", type: "Markdown", size: "18 KB" },
+      { name: "refund_policy.pdf", type: "PDF", size: "960 KB" },
+      { name: "escalation_matrix.xlsx", type: "Spreadsheet", size: "132 KB" },
+    ],
+  },
+  {
+    id: "growth",
+    name: "Revenue Operations",
+    description: "Lead research, CRM hygiene, outbound sequencing, and deal handoff context.",
+    gradientFrom: "from-orange-500",
+    gradientTo: "to-orange-600",
+    files: [
+      { name: "icp_profile.md", type: "Markdown", size: "21 KB" },
+      { name: "email_sequences.json", type: "JSON", size: "54 KB" },
+      { name: "crm_field_map.csv", type: "CSV", size: "36 KB" },
+    ],
+  },
+  {
+    id: "analysis",
+    name: "Analytics Pod",
+    description: "Metric definitions, report templates, pipeline notes, and anomaly response rules.",
+    gradientFrom: "from-emerald-500",
+    gradientTo: "to-emerald-700",
+    files: [
+      { name: "metrics_dictionary.md", type: "Markdown", size: "42 KB" },
+      { name: "weekly_report_template.xlsx", type: "Spreadsheet", size: "280 KB" },
+      { name: "pipeline_runbook.yaml", type: "YAML", size: "14 KB" },
+    ],
+  },
+  {
+    id: "blank",
+    name: "Blank Team",
+    description: "Start with a minimal shared file system and add context as the team learns.",
+    gradientFrom: "from-slate-500",
+    gradientTo: "to-slate-700",
+    files: [
+      { name: "team_context.md", type: "Markdown", size: "4 KB" },
+      { name: "operating_rules.md", type: "Markdown", size: "6 KB" },
+    ],
+  },
+]
+
 function agentToMember(agentId: string): TeamMember | null {
   const agent = agentPool.find((a) => a.id === agentId)
   if (!agent) return null
@@ -278,6 +336,207 @@ function agentToMember(agentId: string): TeamMember | null {
     sessionsToday: agent.status === "active" ? 8 : agent.status === "testing" ? 3 : 0,
     lastActive: agent.status === "inactive" ? "Never" : "Just now",
   }
+}
+
+function buildTeamFiles(templateId: string, teamId: string): TeamFile[] {
+  const template = teamTemplates.find((item) => item.id === templateId) ?? teamTemplates[0]
+  return template.files.map((file, index) => ({
+    id: `${teamId}-file-${index + 1}`,
+    name: file.name,
+    type: file.type,
+    size: file.size,
+    updated: "Just now",
+  }))
+}
+
+function NewTeamModal({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void
+  onCreate: (team: Team, files: TeamFile[]) => void
+}) {
+  const [teamName, setTeamName] = useState("")
+  const [description, setDescription] = useState("")
+  const [templateId, setTemplateId] = useState(teamTemplates[0].id)
+  const [memberIds, setMemberIds] = useState<string[]>([])
+
+  const template = teamTemplates.find((item) => item.id === templateId) ?? teamTemplates[0]
+  const previewFiles = buildTeamFiles(template.id, "preview")
+  const canCreate = teamName.trim().length >= 2
+
+  const toggleMember = (agentId: string) => {
+    setMemberIds((current) =>
+      current.includes(agentId) ? current.filter((id) => id !== agentId) : [...current, agentId]
+    )
+  }
+
+  const createTeam = () => {
+    if (!canCreate) return
+    const slug = teamName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+    const teamId = `${slug || "team"}-${Date.now()}`
+    const files = buildTeamFiles(template.id, teamId)
+    const members = memberIds
+      .map((id) => agentToMember(id))
+      .filter((member): member is TeamMember => Boolean(member))
+
+    onCreate(
+      {
+        id: teamId,
+        name: teamName.trim(),
+        description: description.trim() || template.description,
+        color: "bg-slate-700",
+        gradientFrom: template.gradientFrom,
+        gradientTo: template.gradientTo,
+        sharedKnowledge: files.length,
+        activeToday: members.reduce((total, member) => total + member.sessionsToday, 0),
+        members,
+      },
+      files
+    )
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/25 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[760px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[22px] border border-border bg-card shadow-2xl">
+        <div className="flex items-start justify-between border-b border-border/60 px-6 py-5">
+          <div>
+            <p className="text-[18px] font-semibold tracking-[-0.02em]">Create team workspace</p>
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              Set up the shared file system agents will read as team context.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="grid flex-1 min-h-0 grid-cols-[1.05fr_0.95fr] overflow-y-auto">
+          <div className="space-y-5 border-r border-border/60 p-6">
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Team identity</p>
+              <Input
+                value={teamName}
+                onChange={(event) => setTeamName(event.target.value)}
+                placeholder="e.g., Finance Operations"
+                className="h-10 bg-white text-sm"
+                autoFocus
+              />
+              <Input
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="What should this team be responsible for?"
+                className="h-10 bg-white text-sm"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Starter file system</p>
+              <div className="grid gap-2">
+                {teamTemplates.map((item) => {
+                  const selected = item.id === templateId
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setTemplateId(item.id)}
+                      className={cn(
+                        "flex items-start gap-3 rounded-[14px] border bg-white p-3 text-left transition-all",
+                        selected ? "border-foreground shadow-sm" : "border-border/70 hover:border-border"
+                      )}
+                    >
+                      <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-white", item.gradientFrom, item.gradientTo)}>
+                        <BookOpen className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[12.5px] font-semibold">{item.name}</p>
+                          {selected && <Check className="h-3.5 w-3.5 text-foreground" />}
+                        </div>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{item.description}</p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-5 bg-[hsl(var(--sidebar-bg))] p-6">
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Initial members</p>
+              <div className="space-y-2">
+                {agentPool.map((agent) => {
+                  const selected = memberIds.includes(agent.id)
+                  return (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={() => toggleMember(agent.id)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-[14px] border bg-white p-3 text-left transition-all",
+                        selected ? "border-foreground shadow-sm" : "border-border/70 hover:border-border"
+                      )}
+                    >
+                      <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-bold text-white", agent.gradient)}>
+                        {agent.initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12.5px] font-semibold">{agent.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{agent.role}</p>
+                      </div>
+                      <div className={cn("flex h-5 w-5 items-center justify-center rounded-full border", selected ? "border-foreground bg-foreground text-white" : "border-border")}>
+                        {selected && <Check className="h-3 w-3" />}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-[16px] border border-border bg-white p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[12px] font-semibold">File preview</p>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {previewFiles.length} files
+                </span>
+              </div>
+              <div className="space-y-2">
+                {previewFiles.map((file) => (
+                  <div key={file.id} className="flex items-center gap-2.5 rounded-lg border border-border/50 px-2.5 py-2">
+                    <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11.5px] font-medium">{file.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{file.type} · {file.size}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-border/60 bg-card/90 px-6 py-4">
+          <p className="text-[11px] text-muted-foreground">
+            You can add more files and members after creation.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 text-xs">
+              Cancel
+            </Button>
+            <Button size="sm" onClick={createTeam} disabled={!canCreate} className="h-8 gap-1.5 px-4 text-xs">
+              <Plus className="h-3.5 w-3.5" /> Create Team
+            </Button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
 }
 
 function StatusDot({ status }: { status: TeamMember["status"] }) {
@@ -364,8 +623,17 @@ function TeamCard({ team, onOpen }: { team: Team; onOpen: () => void }) {
   )
 }
 
-function TeamDetail({ team, onBack, onAddMember }: { team: Team; onBack: () => void; onAddMember: (teamId: string, agentId: string) => void }) {
-  const files = sharedKnowledgeByTeam[team.id] ?? []
+function TeamDetail({
+  team,
+  files,
+  onBack,
+  onAddMember,
+}: {
+  team: Team
+  files: TeamFile[]
+  onBack: () => void
+  onAddMember: (teamId: string, agentId: string) => void
+}) {
   const [addMemberOpen, setAddMemberOpen] = useState(false)
 
   return (
@@ -603,8 +871,11 @@ function TeamDetail({ team, onBack, onAddMember }: { team: Team; onBack: () => v
 export default function WorkspacePage() {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [workspaceTeams, setWorkspaceTeams] = useState<Team[]>(teams)
+  const [teamFiles, setTeamFiles] = useState<Record<string, TeamFile[]>>(sharedKnowledgeByTeam)
+  const [newTeamOpen, setNewTeamOpen] = useState(false)
 
   const selectedTeam = workspaceTeams.find((t) => t.id === selectedTeamId) ?? null
+  const selectedTeamFiles = selectedTeam ? teamFiles[selectedTeam.id] ?? [] : []
 
   const handleAddMember = (teamId: string, agentId: string) => {
     const member = agentToMember(agentId)
@@ -623,10 +894,22 @@ export default function WorkspacePage() {
     )
   }
 
+  const handleCreateTeam = (team: Team, files: TeamFile[]) => {
+    setWorkspaceTeams((current) => [team, ...current])
+    setTeamFiles((current) => ({ ...current, [team.id]: files }))
+    setSelectedTeamId(team.id)
+    setNewTeamOpen(false)
+  }
+
   if (selectedTeam) {
     return (
       <div className="flex h-full flex-col">
-        <TeamDetail team={selectedTeam} onBack={() => setSelectedTeamId(null)} onAddMember={handleAddMember} />
+        <TeamDetail
+          team={selectedTeam}
+          files={selectedTeamFiles}
+          onBack={() => setSelectedTeamId(null)}
+          onAddMember={handleAddMember}
+        />
       </div>
     )
   }
@@ -647,6 +930,7 @@ export default function WorkspacePage() {
           <Button
             size="sm"
             className="origin-cta h-9 gap-2 rounded-full px-4 text-[13px] font-semibold"
+            onClick={() => setNewTeamOpen(true)}
           >
             <Plus className="h-4 w-4" /> New Team
           </Button>
@@ -679,7 +963,7 @@ export default function WorkspacePage() {
 
             <div
               className="rounded-xl border border-dashed border-border/50 bg-card/50 p-5 flex flex-col items-center justify-center gap-2.5 min-h-[200px] text-center hover:border-border hover:bg-card cursor-pointer transition-colors group"
-              onClick={() => {}}
+              onClick={() => setNewTeamOpen(true)}
             >
               <div className="h-10 w-10 rounded-xl border border-dashed border-border flex items-center justify-center group-hover:border-muted-foreground transition-colors">
                 <Plus className="h-4 w-4 text-muted-foreground" />
@@ -692,6 +976,12 @@ export default function WorkspacePage() {
           </div>
         </div>
       </div>
+      {newTeamOpen && (
+        <NewTeamModal
+          onClose={() => setNewTeamOpen(false)}
+          onCreate={handleCreateTeam}
+        />
+      )}
     </div>
   )
 }
