@@ -5,10 +5,11 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, Users, UserPlus, Wrench, GitBranch,
   BarChart3, TrendingUp, Settings, ChevronDown, Bell, Zap,
-  CheckCircle2, AlertTriangle, Info, HelpCircle, Gift,
+  CheckCircle2, AlertTriangle, Info, HelpCircle, Gift, Globe2,
 } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { LanguageProvider, useLanguage } from "@/lib/language"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -17,28 +18,28 @@ import {
 
 const navSections = [
   {
-    label: "Overview",
-    items: [{ href: "/", icon: LayoutDashboard, label: "Dashboard" }],
+    labelKey: "nav.overview",
+    items: [{ href: "/", icon: LayoutDashboard, labelKey: "nav.dashboard" }],
   },
   {
-    label: "Workforce",
+    labelKey: "nav.workforce",
     items: [
-      { href: "/employees", icon: Users, label: "AI Employee Team" },
-      { href: "/hire", icon: UserPlus, label: "Hire" },
+      { href: "/employees", icon: Users, labelKey: "nav.team" },
+      { href: "/hire", icon: UserPlus, labelKey: "nav.hire" },
     ],
   },
   {
-    label: "Operations",
+    labelKey: "nav.operations",
     items: [
-      { href: "/workspace", icon: Wrench, label: "Workspace" },
-      { href: "/collaboration", icon: GitBranch, label: "Collaboration" },
+      { href: "/workspace", icon: Wrench, labelKey: "nav.workspace" },
+      { href: "/collaboration", icon: GitBranch, labelKey: "nav.collaboration" },
     ],
   },
   {
-    label: "Insights",
+    labelKey: "nav.insights",
     items: [
-      { href: "/analytics", icon: BarChart3, label: "Analytics" },
-      { href: "/performance", icon: TrendingUp, label: "Performance" },
+      { href: "/analytics", icon: BarChart3, labelKey: "nav.analytics" },
+      { href: "/performance", icon: TrendingUp, labelKey: "nav.performance" },
     ],
   },
 ]
@@ -73,6 +74,7 @@ function NavItem({ href, icon: Icon, label, active }: { href: string; icon: Reac
 
 function Sidebar() {
   const pathname = usePathname()
+  const { t } = useLanguage()
   const [notifOpen, setNotifOpen] = useState(false)
   const [readIds, setReadIds] = useState<Set<string>>(new Set(notifications.filter(n => n.read).map(n => n.id)))
   const unreadCount = notifications.filter(n => !readIds.has(n.id)).length
@@ -96,10 +98,10 @@ function Sidebar() {
               background: "radial-gradient(circle at 50% 50%, hsl(0 0% 100%) 34%, hsl(235 24% 8%) 36%, hsl(235 24% 8%) 62%, hsl(0 0% 100%) 64%)",
             }}
           >
-            <span className="sr-only">AI Employee</span>
+            <span className="sr-only">{t("app.name")}</span>
           </div>
           <span className="text-[18px] font-semibold tracking-tight" style={{ color: "hsl(var(--foreground))", letterSpacing: "-0.025em" }}>
-            AI Employee
+            {t("app.name")}
           </span>
         </div>
 
@@ -158,11 +160,11 @@ function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
         {navSections.map((section) => (
-          <div key={section.label}>
-            <p className="mb-1.5 px-2.5 section-label">{section.label}</p>
+          <div key={section.labelKey}>
+            <p className="mb-1.5 px-2.5 section-label">{t(section.labelKey)}</p>
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} active={isActive(item.href)} />
+                <NavItem key={item.href} href={item.href} icon={item.icon} label={t(item.labelKey)} active={isActive(item.href)} />
               ))}
             </div>
           </div>
@@ -171,7 +173,7 @@ function Sidebar() {
 
       {/* Bottom */}
       <div className="px-3 pb-4 pt-3 space-y-2" style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}>
-        <NavItem href="/settings" icon={Settings} label="Settings" active={isActive("/settings")} />
+        <NavItem href="/settings" icon={Settings} label={t("nav.settings")} active={isActive("/settings")} />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -210,25 +212,61 @@ function Sidebar() {
   )
 }
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function LanguageSwitcher() {
+  const { language, setLanguage, t } = useLanguage()
+
+  return (
+    <div className="flex h-9 items-center gap-1 rounded-full border border-border bg-white p-1 shadow-sm" aria-label={t("language.label")}>
+      <div className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground">
+        <Globe2 className="h-3.5 w-3.5" />
+      </div>
+      {(["en", "zh"] as const).map((item) => (
+        <button
+          key={item}
+          type="button"
+          onClick={() => setLanguage(item)}
+          className={cn(
+            "h-7 rounded-full px-2.5 text-[11px] font-semibold transition-colors",
+            language === item ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          {item === "en" ? t("language.english") : t("language.chinese")}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function AppShell({ children }: { children: React.ReactNode }) {
+  const { t } = useLanguage()
+
   return (
     <div className="flex h-screen overflow-hidden bg-[hsl(var(--background))]">
       <Sidebar />
       <main className="flex-1 overflow-y-auto app-main">
         <div className="sticky top-0 z-20 flex h-[64px] items-center justify-end gap-2 border-b border-border/70 bg-[hsl(var(--background)/0.84)] px-6 backdrop-blur-xl">
+          <LanguageSwitcher />
           <button className="hidden h-9 items-center gap-2 rounded-full border border-border bg-white px-3 text-[13px] font-semibold text-foreground shadow-sm md:flex">
             <Gift className="h-3.5 w-3.5" />
-            Get $25
+            {t("top.getReward")}
           </button>
-          <button className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm">
+          <button aria-label={t("top.help")} className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm">
             <HelpCircle className="h-4 w-4" />
           </button>
-          <Link href="/settings" className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition-colors hover:bg-muted">
+          <Link href="/settings" aria-label={t("top.settings")} className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition-colors hover:bg-muted">
             <Settings className="h-4 w-4" />
           </Link>
         </div>
         {children}
       </main>
     </div>
+  )
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <LanguageProvider>
+      <AppShell>{children}</AppShell>
+    </LanguageProvider>
   )
 }

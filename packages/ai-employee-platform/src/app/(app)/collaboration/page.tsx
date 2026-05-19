@@ -29,6 +29,7 @@ import {
   GitBranch,
 } from "lucide-react"
 import { needsHumanTaskCount } from "@/lib/collaboration-metrics"
+import { useLanguage } from "@/lib/language"
 import { cn } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -416,6 +417,7 @@ const kanbanColumns = [
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CollaborationPage() {
+  const { t } = useLanguage()
   const [approving, setApproving] = useState<string | null>(null)
   const [schedules, setSchedules] = useState(scheduledTasks)
   const [contextOpenId, setContextOpenId] = useState<string | null>(null)
@@ -454,33 +456,33 @@ export default function CollaborationPage() {
           <GitBranch className="h-[19px] w-[19px]" />
         </div>
         <div>
-          <h1 className="text-[26px] font-extrabold tracking-tight leading-none" style={{ letterSpacing: "-0.03em" }}>Collaboration</h1>
+          <h1 className="text-[26px] font-extrabold tracking-tight leading-none" style={{ letterSpacing: "-0.03em" }}>{t("collaboration.title")}</h1>
           <p className="mt-1.5 text-[13px] text-muted-foreground">
-            Manage human-AI workflows and task execution
+            {t("collaboration.subtitle")}
           </p>
         </div>
       </div>
 
       <Tabs defaultValue="tasks" className="space-y-5">
         <TabsList className="h-8">
-          <TabsTrigger value="tasks" className="text-xs h-7">Tasks</TabsTrigger>
+          <TabsTrigger value="tasks" className="text-xs h-7">{t("collaboration.tasks")}</TabsTrigger>
           <TabsTrigger value="approvals" className="text-xs h-7">
-            Approvals
+            {t("collaboration.approvals")}
             {pendingApprovals.length > 0 && (
               <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
                 {pendingApprovals.length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="scheduled" className="text-xs h-7">Scheduled</TabsTrigger>
+          <TabsTrigger value="scheduled" className="text-xs h-7">{t("collaboration.scheduled")}</TabsTrigger>
         </TabsList>
 
         {/* ── Tasks ── */}
         <TabsContent value="tasks" className="space-y-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Recent task activity across your AI team</p>
+            <p className="text-sm text-muted-foreground">{t("collaboration.recent")}</p>
             <Button size="sm" className="h-8 gap-1.5 text-xs">
-              <Plus className="h-3.5 w-3.5" /> Assign Task
+              <Plus className="h-3.5 w-3.5" /> {t("collaboration.assignTask")}
             </Button>
           </div>
 
@@ -488,7 +490,7 @@ export default function CollaborationPage() {
           <div className="space-y-2">
             <div className="flex items-center gap-2 mb-2">
               <UserCheck className="h-3.5 w-3.5 text-amber-700" />
-              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Needs Human</p>
+              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">{t("collaboration.needsHuman")}</p>
               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-700 text-[9px] font-bold text-white">
                 {needsHumanTaskCount}
               </span>
@@ -511,7 +513,7 @@ export default function CollaborationPage() {
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-950">
                     <UserCheck className="h-2.5 w-2.5" />
-                    需要人工
+                    {t("collaboration.needsHuman")}
                   </span>
                   {task.humanReason && (
                     <span className="rounded-md border border-amber-300 bg-white px-2 py-0.5 text-[10px] font-medium text-amber-900">{task.humanReason}</span>
@@ -526,7 +528,7 @@ export default function CollaborationPage() {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Bot className="h-3.5 w-3.5 text-muted-foreground/60" />
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Automated</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("collaboration.automated")}</p>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2">
               {kanbanColumns.map((col) => {

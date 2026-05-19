@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/lib/language"
 
 const agentPool = [
   { id: "1", name: "Customer Support Agent", role: "Support", initials: "CS", gradient: "from-blue-500 to-blue-700", status: "active" as const },
@@ -356,6 +357,7 @@ function NewTeamModal({
   onClose: () => void
   onCreate: (team: Team, files: TeamFile[]) => void
 }) {
+  const { t } = useLanguage()
   const [teamName, setTeamName] = useState("")
   const [description, setDescription] = useState("")
   const [templateId, setTemplateId] = useState(teamTemplates[0].id)
@@ -406,9 +408,9 @@ function NewTeamModal({
       <div className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[760px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[22px] border border-border bg-card shadow-2xl">
         <div className="flex items-start justify-between border-b border-border/60 px-6 py-5">
           <div>
-            <p className="text-[18px] font-semibold tracking-[-0.02em]">Create team workspace</p>
+            <p className="text-[18px] font-semibold tracking-[-0.02em]">{t("workspace.createTitle")}</p>
             <p className="mt-1 text-[12px] text-muted-foreground">
-              Set up the shared file system agents will read as team context.
+              {t("workspace.createSubtitle")}
             </p>
           </div>
           <button onClick={onClose} className="rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground">
@@ -419,24 +421,24 @@ function NewTeamModal({
         <div className="grid flex-1 min-h-0 grid-cols-[1.05fr_0.95fr] overflow-y-auto">
           <div className="space-y-5 border-r border-border/60 p-6">
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Team identity</p>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{t("workspace.teamIdentity")}</p>
               <Input
                 value={teamName}
                 onChange={(event) => setTeamName(event.target.value)}
-                placeholder="e.g., Finance Operations"
+                placeholder={t("workspace.namePlaceholder")}
                 className="h-10 bg-white text-sm"
                 autoFocus
               />
               <Input
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="What should this team be responsible for?"
+                placeholder={t("workspace.descriptionPlaceholder")}
                 className="h-10 bg-white text-sm"
               />
             </div>
 
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Starter file system</p>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{t("workspace.starterFs")}</p>
               <div className="grid gap-2">
                 {teamTemplates.map((item) => {
                   const selected = item.id === templateId
@@ -469,7 +471,7 @@ function NewTeamModal({
 
           <div className="space-y-5 bg-[hsl(var(--sidebar-bg))] p-6">
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Initial members</p>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{t("workspace.initialMembers")}</p>
               <div className="space-y-2">
                 {agentPool.map((agent) => {
                   const selected = memberIds.includes(agent.id)
@@ -501,7 +503,7 @@ function NewTeamModal({
 
             <div className="rounded-[16px] border border-border bg-white p-4">
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-[12px] font-semibold">File preview</p>
+                <p className="text-[12px] font-semibold">{t("workspace.filePreview")}</p>
                 <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                   {previewFiles.length} files
                 </span>
@@ -523,14 +525,14 @@ function NewTeamModal({
 
         <div className="flex items-center justify-between border-t border-border/60 bg-card/90 px-6 py-4">
           <p className="text-[11px] text-muted-foreground">
-            You can add more files and members after creation.
+            {t("workspace.createFootnote")}
           </p>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={onClose} className="h-8 text-xs">
-              Cancel
+              {t("workspace.cancel")}
             </Button>
             <Button size="sm" onClick={createTeam} disabled={!canCreate} className="h-8 gap-1.5 px-4 text-xs">
-              <Plus className="h-3.5 w-3.5" /> Create Team
+              <Plus className="h-3.5 w-3.5" /> {t("workspace.createTeam")}
             </Button>
           </div>
         </div>
@@ -634,6 +636,7 @@ function TeamDetail({
   onBack: () => void
   onAddMember: (teamId: string, agentId: string) => void
 }) {
+  const { t } = useLanguage()
   const [addMemberOpen, setAddMemberOpen] = useState(false)
 
   return (
@@ -645,7 +648,7 @@ function TeamDetail({
             className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-3 w-3" />
-            All Teams
+            {t("workspace.allTeams")}
           </button>
           <div className="flex items-center gap-3">
             <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${team.gradientFrom} ${team.gradientTo} shadow-sm`}>
@@ -660,7 +663,7 @@ function TeamDetail({
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Members</p>
+          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{t("workspace.members")}</p>
           {team.members.map((m) => (
             <div
               key={m.id}
@@ -679,7 +682,7 @@ function TeamDetail({
               className="flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors py-1.5"
             >
               <UserPlus className="h-3.5 w-3.5" />
-              Add Member
+              {t("workspace.addMember")}
             </button>
           </div>
         </div>
@@ -700,13 +703,13 @@ function TeamDetail({
         <Tabs defaultValue="members" className="space-y-5">
           <TabsList className="h-8">
             <TabsTrigger value="members" className="text-xs h-7 gap-1.5">
-              <Users className="h-3 w-3" /> Members
+              <Users className="h-3 w-3" /> {t("workspace.members")}
             </TabsTrigger>
             <TabsTrigger value="knowledge" className="text-xs h-7 gap-1.5">
-              <BookOpen className="h-3 w-3" /> Team File System
+              <BookOpen className="h-3 w-3" /> {t("workspace.teamFileSystem")}
             </TabsTrigger>
             <TabsTrigger value="settings" className="text-xs h-7 gap-1.5">
-              <Settings2 className="h-3 w-3" /> Settings
+              <Settings2 className="h-3 w-3" /> {t("nav.settings")}
             </TabsTrigger>
           </TabsList>
 
@@ -714,7 +717,7 @@ function TeamDetail({
             <div className="flex items-center justify-between">
               <p className="text-[12px] text-muted-foreground">{team.members.length} member{team.members.length !== 1 ? "s" : ""} · Agents share the same team context</p>
               <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAddMemberOpen(true)}>
-                <UserPlus className="h-3.5 w-3.5" /> Add Member
+                <UserPlus className="h-3.5 w-3.5" /> {t("workspace.addMember")}
               </Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -769,9 +772,9 @@ function TeamDetail({
 
           <TabsContent value="knowledge" className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-[12px] text-muted-foreground">{files.length} files · Read by every agent before work starts</p>
+              <p className="text-[12px] text-muted-foreground">{files.length} {t("workspace.filesRead")}</p>
               <Button size="sm" className="h-8 gap-1.5 text-xs">
-                <DownloadCloud className="h-3.5 w-3.5" /> Upload file
+                <DownloadCloud className="h-3.5 w-3.5" /> {t("workspace.uploadFile")}
               </Button>
             </div>
             <div className="space-y-2">
@@ -869,6 +872,7 @@ function TeamDetail({
 }
 
 export default function WorkspacePage() {
+  const { t } = useLanguage()
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [workspaceTeams, setWorkspaceTeams] = useState<Team[]>(teams)
   const [teamFiles, setTeamFiles] = useState<Record<string, TeamFile[]>>(sharedKnowledgeByTeam)
@@ -923,8 +927,8 @@ export default function WorkspacePage() {
               <Zap className="h-[19px] w-[19px]" />
             </div>
             <div>
-              <h1 className="text-[30px] font-semibold leading-none tracking-[-0.03em]">Workspace</h1>
-              <p className="text-[13.5px] text-muted-foreground mt-2">Each team has a shared file system agents use as common context.</p>
+              <h1 className="text-[30px] font-semibold leading-none tracking-[-0.03em]">{t("workspace.title")}</h1>
+              <p className="text-[13.5px] text-muted-foreground mt-2">{t("workspace.subtitle")}</p>
             </div>
           </div>
           <Button
@@ -932,15 +936,15 @@ export default function WorkspacePage() {
             className="origin-cta h-9 gap-2 rounded-full px-4 text-[13px] font-semibold"
             onClick={() => setNewTeamOpen(true)}
           >
-            <Plus className="h-4 w-4" /> New Team
+            <Plus className="h-4 w-4" /> {t("workspace.newTeam")}
           </Button>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "Teams", value: workspaceTeams.length, icon: Users, boxClass: "icon-box-primary" },
-            { label: "Total Agents", value: workspaceTeams.reduce((a, t) => a + t.members.length, 0), icon: MessageSquare, boxClass: "icon-box-blue" },
-            { label: "Context Files", value: workspaceTeams.reduce((a, t) => a + t.sharedKnowledge, 0), icon: BookOpen, boxClass: "icon-box-emerald" },
+            { label: t("workspace.teams"), value: workspaceTeams.length, icon: Users, boxClass: "icon-box-primary" },
+            { label: t("workspace.totalAgents"), value: workspaceTeams.reduce((a, t) => a + t.members.length, 0), icon: MessageSquare, boxClass: "icon-box-blue" },
+            { label: t("workspace.contextFiles"), value: workspaceTeams.reduce((a, t) => a + t.sharedKnowledge, 0), icon: BookOpen, boxClass: "icon-box-emerald" },
           ].map(({ label, value, icon: Icon, boxClass }) => (
             <div key={label} className="surface card-shadow px-5 py-4 flex items-center gap-4">
               <div className={cn("icon-box h-10 w-10", boxClass)}>
@@ -955,7 +959,7 @@ export default function WorkspacePage() {
         </div>
 
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">Teams</p>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">{t("workspace.teams")}</p>
           <div className="grid gap-4 sm:grid-cols-2">
             {workspaceTeams.map((team) => (
               <TeamCard key={team.id} team={team} onOpen={() => setSelectedTeamId(team.id)} />
@@ -969,8 +973,8 @@ export default function WorkspacePage() {
                 <Plus className="h-4 w-4 text-muted-foreground" />
               </div>
               <div>
-                <p className="text-[13px] font-medium">New Team</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Group agents around<br />a shared purpose</p>
+                <p className="text-[13px] font-medium">{t("workspace.newTeam")}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{t("workspace.newTeamHint")}</p>
               </div>
             </div>
           </div>

@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { TeamOutputChart } from "@/components/team-output-chart"
 import { needsHumanTaskCount } from "@/lib/collaboration-metrics"
+import { LanguageText } from "@/lib/language"
 import { cn } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
@@ -81,13 +82,13 @@ export default function DashboardPage() {
       <section className="min-w-0 space-y-6">
         <div className="flex items-start justify-between gap-5">
           <div>
-            <h1 className="text-[30px] font-semibold tracking-[-0.03em] text-foreground">Good afternoon, Hongliang</h1>
-            <p className="mt-1 text-[13.5px] text-muted-foreground">SLMobbin Workspace · AI Employee operating system</p>
+            <h1 className="text-[30px] font-semibold tracking-[-0.03em] text-foreground"><LanguageText id="dashboard.greeting" /></h1>
+            <p className="mt-1 text-[13.5px] text-muted-foreground"><LanguageText id="dashboard.subtitle" /></p>
           </div>
           <Link href="/hire">
             <Button className="origin-cta h-10 rounded-full px-4 text-[13px] font-semibold">
               <Plus className="mr-2 h-4 w-4" />
-              Hire employee
+              <LanguageText id="dashboard.hire" />
             </Button>
           </Link>
         </div>
