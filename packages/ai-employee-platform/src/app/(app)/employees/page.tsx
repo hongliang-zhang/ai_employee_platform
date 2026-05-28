@@ -30,7 +30,7 @@ const employees = [
     role: "Support",
     description: "Handles customer inquiries, resolves tickets, and escalates complex issues to Linear.",
     status: "active" as const,
-    model: "Claude 3.5 Sonnet",
+    model: "GLM-5 Turbo",
     sessions: 145,
     lastActive: "2 min ago",
     successRate: 96.5,
@@ -45,7 +45,7 @@ const employees = [
     role: "Analytics",
     description: "Analyzes business data, generates reports, and surfaces insights from your data warehouse.",
     status: "active" as const,
-    model: "Claude 3.5 Sonnet",
+    model: "GLM-5 Turbo",
     sessions: 89,
     lastActive: "18 min ago",
     successRate: 94.2,
@@ -60,7 +60,7 @@ const employees = [
     role: "Sales",
     description: "Helps with lead generation, outreach emails, and CRM data enrichment.",
     status: "testing" as const,
-    model: "Claude 3.5 Haiku",
+    model: "GLM-4.7 Flash",
     sessions: 12,
     lastActive: "1h ago",
     successRate: 87.5,
@@ -75,7 +75,7 @@ const employees = [
     role: "Engineering",
     description: "Writes retro summaries, tracks sprint velocity, and preps meeting agendas.",
     status: "inactive" as const,
-    model: "Claude 3.5 Haiku",
+    model: "GLM-4.7 Flash",
     sessions: 0,
     lastActive: "Never",
     successRate: 0,
@@ -308,7 +308,7 @@ export default function EmployeesPage() {
                     </div>
                     <div className="ml-auto text-right">
                       <p className="kpi-label mb-1">Model</p>
-                      <p className="text-[11px] font-semibold text-muted-foreground/70">{emp.model.replace("Claude ", "")}</p>
+                      <p className="text-[11px] font-semibold text-muted-foreground/70">{emp.model}</p>
                     </div>
                   </div>
 

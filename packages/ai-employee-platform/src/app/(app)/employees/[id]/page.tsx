@@ -47,15 +47,13 @@ const availableModels = [
   { id: "glm-5-turbo", name: "GLM-5 Turbo", badge: "Recommended", desc: "高效均衡" },
   { id: "glm-5v-turbo", name: "GLM-5V Turbo", badge: "Vision", desc: "视觉+语言" },
   { id: "glm-4.7-flash", name: "GLM-4.7 Flash", badge: "Fast", desc: "超低延迟" },
-  { id: "claude-sonnet-4-5", name: "Claude 3.5 Sonnet", badge: "Claude", desc: "Anthropic flagship" },
-  { id: "claude-haiku-4-5", name: "Claude 3.5 Haiku", badge: "Claude", desc: "Anthropic fast" },
 ]
 
 const employeeData = {
   "1": {
     id: "1", name: "Customer Support Agent", role: "Support", initials: "CS",
     gradient: "from-blue-500 to-blue-700", gradientHero: "from-blue-500/10 via-blue-400/5 to-transparent",
-    status: "active" as const, model: "Claude 3.5 Sonnet", modelId: "claude-sonnet-4-5",
+    status: "active" as const, model: "GLM-5 Turbo", modelId: "glm-5-turbo",
     createdAt: "Jan 12, 2025", updatedAt: "2 days ago",
     description: "Handles inbound customer queries, resolves tickets, and escalates complex issues to Linear. Maintains a friendly, professional tone and always confirms before taking irreversible actions.",
     sessions: 145, successRate: 96.5, lastActive: "2 min ago",
@@ -72,7 +70,7 @@ const employeeData = {
   "2": {
     id: "2", name: "Data Analyst", role: "Analytics", initials: "DA",
     gradient: "from-emerald-500 to-emerald-700", gradientHero: "from-emerald-500/10 via-emerald-400/5 to-transparent",
-    status: "active" as const, model: "Claude 3.5 Sonnet", modelId: "claude-sonnet-4-5",
+    status: "active" as const, model: "GLM-5 Turbo", modelId: "glm-5-turbo",
     createdAt: "Jan 15, 2025", updatedAt: "5 hours ago",
     description: "Analyzes business data, generates reports, and surfaces insights from your data warehouse. Proactively alerts on anomalies.",
     sessions: 89, successRate: 94.2, lastActive: "18 min ago",
@@ -88,7 +86,7 @@ const employeeData = {
   "3": {
     id: "3", name: "Sales Assistant", role: "Sales", initials: "SA",
     gradient: "from-orange-500 to-orange-600", gradientHero: "from-orange-500/10 via-orange-400/5 to-transparent",
-    status: "testing" as const, model: "Claude 3.5 Haiku", modelId: "claude-haiku-4-5",
+    status: "testing" as const, model: "GLM-4.7 Flash", modelId: "glm-4.7-flash",
     createdAt: "Feb 1, 2025", updatedAt: "1 week ago",
     description: "Helps with lead generation, outreach emails, and CRM data enrichment. Currently in testing phase.",
     sessions: 12, successRate: 87.5, lastActive: "1h ago",
@@ -104,7 +102,7 @@ const employeeData = {
   "4": {
     id: "4", name: "Sprint Facilitator", role: "Engineering", initials: "SF",
     gradient: "from-slate-400 to-slate-600", gradientHero: "from-slate-400/10 via-slate-300/5 to-transparent",
-    status: "inactive" as const, model: "Claude 3.5 Haiku", modelId: "claude-haiku-4-5",
+    status: "inactive" as const, model: "GLM-4.7 Flash", modelId: "glm-4.7-flash",
     createdAt: "Dec 10, 2024", updatedAt: "3 weeks ago",
     description: "Writes retro summaries, tracks sprint velocity, and preps meeting agendas. Currently inactive.",
     sessions: 0, successRate: 0, lastActive: "Never",
